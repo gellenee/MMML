@@ -1,6 +1,6 @@
 import torch
 from utils.en_train import EnConfig, EnRun
-from utils.ch_model import rob_d2v_cc, rob_d2v_cme  # These are the models from your model file
+from utils.en_model import rob_d2v_cc, rob_d2v_cme  
 from utils.data_loader import data_loader
 from utils.metricsTop import MetricsTop
 
