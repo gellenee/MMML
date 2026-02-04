@@ -242,21 +242,34 @@ def EnRun(config):
         print('---------------------EPOCH: ', epoch, '--------------------')
         epoch += 1
         trainer.do_train(model, train_loader)
-        eval_results = trainer.do_test(model, val_loader,"VAL")
+        eval_results = trainer.do_test(model, val_loader, "VAL")
 
-        if eval_results['Loss']<lowest_eval_loss:
+        # Save the best LOSS model (Overwrites previous best)
+        if eval_results['Loss'] < lowest_eval_loss:
             lowest_eval_loss = eval_results['Loss']
-            torch.save(model.state_dict(), config.model_save_path+f'RH_loss_{config.dataset_name}_{config.seed}_{lowest_eval_loss}.pth')
+            save_path_loss = config.model_save_path + f'best_loss_{config.dataset_name}.pth'
+            torch.save(model.state_dict(), save_path_loss)
             best_epoch = epoch
-        if eval_results['Has0_acc_2']>=highest_eval_acc:
+            
+        # Save the best ACCURACY model (Overwrites previous best)
+        if eval_results['Has0_acc_2'] >= highest_eval_acc:
             highest_eval_acc = eval_results['Has0_acc_2']
-            torch.save(model.state_dict(), config.model_save_path+f'RH_acc_{config.dataset_name}_{config.seed}_{highest_eval_acc}.pth')
+            save_path_acc = config.model_save_path + f'best_acc_{config.dataset_name}.pth'
+            torch.save(model.state_dict(), save_path_acc)
+            
         if epoch - best_epoch >= config.early_stop:
             break
-    model.load_state_dict(torch.load(config.model_save_path+f'RH_acc_{config.dataset_name}_{config.seed}_{highest_eval_acc}.pth'))        
-    test_results_loss = trainer.do_test(model, test_loader,"TEST")
-    print('%s: >> ' %('TEST (highest val acc) ') + dict_to_str(test_results_loss))
 
-    model.load_state_dict(torch.load(config.model_save_path+f'RH_loss_{config.dataset_name}_{config.seed}_{lowest_eval_loss}.pth'))
-    test_results_acc = trainer.do_test(model, test_loader,"TEST")
-    print('%s: >> ' %('TEST (lowest val loss) ') + dict_to_str(test_results_acc))
+    # --- FINAL TESTING ---
+    
+    # Load and test the highest accuracy version
+    print("\nLoading Best Accuracy Model...")
+    model.load_state_dict(torch.load(save_path_acc))        
+    test_results_acc = trainer.do_test(model, test_loader, "TEST")
+    print('%s: >> ' %('TEST (highest val acc) ') + dict_to_str(test_results_acc))
+
+    # Load and test the lowest loss version
+    print("\nLoading Best Loss Model...")
+    model.load_state_dict(torch.load(save_path_loss))
+    test_results_loss = trainer.do_test(model, test_loader, "TEST")
+    print('%s: >> ' %('TEST (lowest val loss) ') + dict_to_str(test_results_loss))
