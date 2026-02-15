@@ -1,32 +1,134 @@
-# Force the dimensions to match the 1024/4096 found in the checkpoint
-class LargeConfig:
-    def __init__(self):
-        self.batch_size = 8
-        self.dataset_name = 'mosi'
-        self.model = 'cme'
-        self.cme_version = 'v1' # Check if this should be v3 based on your previous error
-        self.dropout = 0.3
-        self.num_hidden_layers = 5 # As confirmed by "CME_layers.4"
-        self.tasks = 'MTA'
-        self.train_mode = 'regression'
+import torch
+import random
+import numpy as np
+from utils.en_train import EnConfig, EnTrainer, dict_to_str
+from utils.context_model import rob_d2v_cc_context, rob_d2v_cme_context
+from utils.en_model import rob_d2v_cc, rob_d2v_cme
+from utils.data_loader import data_loader
+from utils.metricsTop import MetricsTop
 
-# You MUST pass these specific numbers to BertConfig now
-from utils.cross_attn_encoder import BertConfig
+# Set device
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# Create a config that matches the checkpoint's "Brain"
-custom_bert_config = BertConfig(
-    hidden_size=1024, 
-    intermediate_size=4096, 
-    num_hidden_layers=5
-)
+# Set random seeds for reproducibility
+def set_seed(seed):
+    random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    np.random.seed(seed)
+    torch.backends.cudnn.deterministic = True
 
-# When building the model, ensure it uses these specs
-model = rob_d2v_cme(LargeConfig()) 
+def test_checkpoint(checkpoint_path, config=None):
+    """
+    Load a checkpoint and test it on MOSI regression evaluation.
+    
+    Args:
+        checkpoint_path: Path to your .pth checkpoint file
+        config: Optional EnConfig object. If None, will create a default config.
+    """
+    # Set seed
+    set_seed(1)  # You can change this to match your training seed
+    
+    # Create config if not provided
+    if config is None:
+        config = EnConfig(
+            train_mode='regression',
+            dataset_name='mosi',
+            model='cme',  # Change to 'cc' if you used concatenate model
+            cme_version='v1',  # Change to 'v2' or 'v3' if you used different version
+            num_hidden_layers=5,  # Adjust based on your checkpoint
+            batch_size=8,
+            context=True,  # Set to False if you didn't use context
+            text_context_len=2,
+            audio_context_len=1,
+            tasks='M',  # 'M' for multimodal only, 'MTA' for multi-task
+            multi_task=False,  # Set to True if tasks='MTA'
+            dropout=0.3
+        )
+    
+    # Load data
+    print("Loading test data...")
+    train_loader, test_loader, val_loader = data_loader(
+        config.batch_size, 
+        config.dataset_name,
+        text_context_length=config.text_context_len,
+        audio_context_length=config.audio_context_len
+    )
+    
+    # Initialize model
+    print("Initializing model...")
+    if config.context:
+        if config.model == 'cc':
+            model = rob_d2v_cc_context(config).to(device)
+        elif config.model == 'cme':
+            model = rob_d2v_cme_context(config).to(device)
+        for param in model.data2vec_model.feature_extractor.parameters():
+            param.requires_grad = False
+    else:
+        if config.model == 'cc':
+            model = rob_d2v_cc(config).to(device)
+        elif config.model == 'cme':
+            model = rob_d2v_cme(config).to(device)
+        for param in model.data2vec_model.feature_extractor.parameters():
+            param.requires_grad = False
+    
+    # Load checkpoint
+    print(f"Loading checkpoint from {checkpoint_path}...")
+    model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+    model.eval()
+    
+    # Initialize trainer for evaluation
+    trainer = EnTrainer(config)
+    
+    # Test on test set
+    print("\n" + "="*50)
+    print("Testing on TEST set...")
+    print("="*50)
+    test_results = trainer.do_test(model, test_loader, "TEST")
+    print(f'\nTEST Results: {dict_to_str(test_results)}')
+    
+    # Also test on validation set if needed
+    print("\n" + "="*50)
+    print("Testing on VALIDATION set...")
+    print("="*50)
+    val_results = trainer.do_test(model, val_loader, "VAL")
+    print(f'\nVAL Results: {dict_to_str(val_results)}')
+    
+    return test_results, val_results
 
-# CRITICAL: Overwrite the automatically created CME layers with Large ones
-from utils.cross_attn_encoder import CMELayer
-import torch.nn as nn
-
-model.CME_layers = nn.ModuleList(
-    [CMELayer(custom_bert_config) for _ in range(5)]
-)
+# Example usage:
+if __name__ == "__main__":
+    # Path to your checkpoint file
+    checkpoint_path = "backups/RH_acc_mosi_1_0.8734.pth.pth"  # Update this path
+    
+    # Optional: Create custom config if your model was trained with specific settings
+    custom_config = EnConfig(
+        train_mode='regression',
+        dataset_name='mosi',
+        model='cme',
+        cme_version='v1',
+        num_hidden_layers=5,
+        batch_size=8,
+        context=True,
+        text_context_len=2,
+        audio_context_len=1,
+        tasks='M',
+        multi_task=False,
+        dropout=0.3
+    )
+    
+    # Run test
+    test_results, val_results = test_checkpoint(checkpoint_path, config=custom_config)
+    
+    # Print MOSI regression metrics
+    print("\n" + "="*50)
+    print("MOSI Regression Metrics Summary:")
+    print("="*50)
+    print(f"Has0_acc_2: {test_results.get('Has0_acc_2', 'N/A')}")
+    print(f"Has0_F1_score: {test_results.get('Has0_F1_score', 'N/A')}")
+    print(f"Non0_acc_2: {test_results.get('Non0_acc_2', 'N/A')}")
+    print(f"Non0_F1_score: {test_results.get('Non0_F1_score', 'N/A')}")
+    print(f"Mult_acc_5: {test_results.get('Mult_acc_5', 'N/A')}")
+    print(f"Mult_acc_7: {test_results.get('Mult_acc_7', 'N/A')}")
+    print(f"MAE: {test_results.get('MAE', 'N/A')}")
+    print(f"Corr: {test_results.get('Corr', 'N/A')}")
