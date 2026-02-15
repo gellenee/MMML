@@ -32,7 +32,7 @@ def test_checkpoint(checkpoint_path, config=None):
     # Create config if not provided
     if config is None:
         config = EnConfig(
-            train_mode='regression',
+            train_mode='classification',
             dataset_name='mosi',
             model='cme',  # Change to 'cc' if you used concatenate model
             cme_version='v1',  # Change to 'v2' or 'v3' if you used different version
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     # Path to your checkpoint file
     checkpoint_path = "backups/RH_acc_mosi_1_0.8734.pth"  # Update this path
     
-    # Optional: Create custom config if your model was trained with specific settings
+    #  custom config if your model was trained with specific settings
     custom_config = EnConfig(
         train_mode='regression',
         dataset_name='mosi',
