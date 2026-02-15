@@ -99,7 +99,7 @@ def test_checkpoint(checkpoint_path, config=None):
 # Example usage:
 if __name__ == "__main__":
     # Path to your checkpoint file
-    checkpoint_path = "backups/RH_acc_mosi_1_0.8734.pth.pth"  # Update this path
+    checkpoint_path = "backups/RH_acc_mosi_1_0.8734.pth"  # Update this path
     
     # Optional: Create custom config if your model was trained with specific settings
     custom_config = EnConfig(
