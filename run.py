@@ -5,13 +5,19 @@ def main(args):
     gpu_id = args.gpu if args.gpu is not None else 0
     os.environ['CUDA_DEVICE_ID'] = str(gpu_id)
     
-    print(f"Using device: {device}")
         
     import torch
     from utils.en_train import EnConfig, EnRun
     from utils.ch_train import ChConfig, ChRun
     from distutils.util import strtobool
 
+
+    device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"GPU {gpu_id} name: {torch.cuda.get_device_name(gpu_id)}")
+        print(f"GPU {gpu_id} memory: {torch.cuda.get_device_properties(gpu_id).total_memory / 1e9:.2f} GB")
     if args.dataset != 'sims':
         EnRun(EnConfig(batch_size=args.batch_size,learning_rate=args.lr,seed=args.seed, model=args.model, tasks = args.tasks,
                                     cme_version=args.cme_version, dataset_name=args.dataset,num_hidden_layers=args.num_hidden_layers,
