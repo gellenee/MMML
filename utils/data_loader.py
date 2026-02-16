@@ -70,9 +70,9 @@ class Dataset_sims(torch.utils.data.Dataset):
                 "audio_masks": audio_masks,
                  # labels
                 "target": {
-                    "M": self.targets_M[index],
-                    "T": self.targets_T[index],
-                    "A": self.targets_A[index]
+                    "M": float(self.targets_M.iloc[index]),
+                    "T": float(self.targets_T.iloc[index]),
+                    "A": float(self.targets_A.iloc[index])
                 }
                 }
     
