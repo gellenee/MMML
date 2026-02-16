@@ -27,7 +27,7 @@ def test_checkpoint(checkpoint_path, config=None):
         config: Optional EnConfig object. If None, will create a default config.
     """
     # Set seed
-    set_seed(11)  # You can change this to match your training seed
+    set_seed(111)  # You can change this to match your training seed
     
     # Create config if not provided
     if config is None:
