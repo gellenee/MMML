@@ -3,11 +3,10 @@ import os
 
 def main(args):
     gpu_id = args.gpu if args.gpu is not None else 0
-    device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
+    os.environ['CUDA_DEVICE_ID'] = str(gpu_id)
+    
     print(f"Using device: {device}")
-    
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
-    
+        
     import torch
     from utils.en_train import EnConfig, EnRun
     from utils.ch_train import ChConfig, ChRun
