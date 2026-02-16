@@ -8,9 +8,10 @@ import random
 import numpy as np
 from utils.data_loader import data_loader
 from itertools import chain
-
+import os
 # global variable
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+gpu_id = int(os.environ.get('CUDA_DEVICE_ID', '0'))
+device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
 
 
 def dict_to_str(src_dict):

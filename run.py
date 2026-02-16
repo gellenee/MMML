@@ -1,9 +1,17 @@
 import argparse
+import torch
 from utils.en_train import EnConfig, EnRun
 from utils.ch_train import ChConfig, ChRun
 from distutils.util import strtobool
+import os
 
 def main(args):
+    gpu_id = args.gpu if args.gpu is not None else 0
+    device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+
     if args.dataset != 'sims':
         EnRun(EnConfig(batch_size=args.batch_size,learning_rate=args.lr,seed=args.seed, model=args.model, tasks = args.tasks,
                                     cme_version=args.cme_version, dataset_name=args.dataset,num_hidden_layers=args.num_hidden_layers,
@@ -25,6 +33,7 @@ if __name__ == "__main__":
     parser.add_argument('--context', default=True, help='incorporate context or not', dest='context', type=lambda x: bool(strtobool(x)))
     parser.add_argument('--text_context_len', type=int, default=2)
     parser.add_argument('--audio_context_len', type=int, default=1)
+    parser.add_argument('--gpu', type=int, default=0, help='GPU device ID to use (default: 0)')
     args = parser.parse_args()
     main(args)
 
