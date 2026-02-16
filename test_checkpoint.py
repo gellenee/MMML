@@ -27,7 +27,7 @@ def test_checkpoint(checkpoint_path, config=None):
         config: Optional EnConfig object. If None, will create a default config.
     """
     # Set seed
-    set_seed(1)  # You can change this to match your training seed
+    set_seed(11)  # You can change this to match your training seed
     
     # Create config if not provided
     if config is None:
@@ -99,7 +99,7 @@ def test_checkpoint(checkpoint_path, config=None):
 # Example usage:
 if __name__ == "__main__":
     # Path to your checkpoint file
-    checkpoint_path = "backups/RH_acc_mosi_1_0.8734.pth"  # Update this path
+    checkpoint_path = "checkpoint/best_acc_mosi.pth"  # Update this path
     
     #  custom config if your model was trained with specific settings
     custom_config = EnConfig(
