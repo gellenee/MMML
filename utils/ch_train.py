@@ -195,12 +195,11 @@ def ChRun(config):
 #         test_results = trainer.do_test(model, test_loader,"TEST")
         if eval_results['Loss']<lowest_eval_loss:
             lowest_eval_loss = eval_results['Loss']
-            torch.save(model.state_dict(), config.model_save_path+'loss.pth')
+            torch.save(model.state_dict(), config.model_save_path+f'loss_seed{config.seed}.pth')
             best_epoch = epoch
         if eval_results['Mult_acc_2']>=highest_eval_acc:
             highest_eval_acc = eval_results['Mult_acc_2']
-            torch.save(model.state_dict(), config.model_save_path+'acc.pth')
-        if epoch - best_epoch >= config.early_stop:
+            torch.save(model.state_dict(), config.model_save_path+f'acc_seed{config.seed}.pth')        if epoch - best_epoch >= config.early_stop:
             break
     model.load_state_dict(torch.load(config.model_save_path+'acc.pth'))        
     test_results_loss = trainer.do_test(model, test_loader,"TEST")

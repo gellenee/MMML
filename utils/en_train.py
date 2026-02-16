@@ -247,14 +247,14 @@ def EnRun(config):
         # Save the best LOSS model (Overwrites previous best)
         if eval_results['Loss'] < lowest_eval_loss:
             lowest_eval_loss = eval_results['Loss']
-            save_path_loss = config.model_save_path + f'best_loss_{config.dataset_name}.pth'
+            save_path_loss = config.model_save_path + f'best_loss_{config.dataset_name}_seed{config.seed}_loss{eval_results["Loss"]:.4f}.pth'
             torch.save(model.state_dict(), save_path_loss)
             best_epoch = epoch
             
         # Save the best ACCURACY model (Overwrites previous best)
         if eval_results['Has0_acc_2'] >= highest_eval_acc:
             highest_eval_acc = eval_results['Has0_acc_2']
-            save_path_acc = config.model_save_path + f'best_acc_{config.dataset_name}.pth'
+            save_path_acc = config.model_save_path + f'best_loss_{config.dataset_name}_seed{config.seed}_loss{eval_results["Loss"]:.4f}.pth'
             torch.save(model.state_dict(), save_path_acc)
             
         if epoch - best_epoch >= config.early_stop:
