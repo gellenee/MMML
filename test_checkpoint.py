@@ -152,7 +152,6 @@ if __name__ == "__main__":
         num_hidden_layers=5,  # Make sure this matches your training config
         batch_size=8,
         tasks='MTA',  # SIMS uses multi-task
-        multi_task=True,
         dropout=0.3
     )
     
