@@ -99,12 +99,12 @@ def test_checkpoint(checkpoint_path, config=None):
 # Example usage:
 if __name__ == "__main__":
     # Path to your checkpoint file
-    checkpoint_path = "checkpoint/best_acc_mosi.pth"  # Update this path
+    checkpoint_path = "checkpoint/acc.pth"  # Update this path
     
     #  custom config if your model was trained with specific settings
     custom_config = EnConfig(
         train_mode='regression',
-        dataset_name='mosi',
+        dataset_name='sims',
         model='cme',
         cme_version='v1',
         num_hidden_layers=5,
