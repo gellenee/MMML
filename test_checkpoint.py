@@ -27,13 +27,13 @@ def test_checkpoint(checkpoint_path, config=None):
         config: Optional EnConfig object. If None, will create a default config.
     """
     # Set seed
-    set_seed(111)  # You can change this to match your training seed
+    set_seed(1)  # You can change this to match your training seed
     
     # Create config if not provided
     if config is None:
         config = EnConfig(
             train_mode='classification',
-            dataset_name='mosi',
+            dataset_name='sims',
             model='cme',  # Change to 'cc' if you used concatenate model
             cme_version='v1',  # Change to 'v2' or 'v3' if you used different version
             num_hidden_layers=5,  # Adjust based on your checkpoint
