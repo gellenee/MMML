@@ -2,9 +2,9 @@ import torch
 from torch import nn
 from transformers import RobertaModel, HubertModel, AutoModel, Data2VecAudioModel
 from utils.cross_attn_encoder import CMELayer, BertConfig
+import os
 
-
-
+gpu_id = int(os.environ.get('CUDA_DEVICE_ID', '0'))
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # English text model + context

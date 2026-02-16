@@ -3,8 +3,9 @@ from torch import nn
 from transformers import RobertaModel, HubertModel, AutoModel
 from utils.cross_attn_encoder import CMELayer, BertConfig
 # from positional_encodings.torch_encodings import PositionalEncodingPermute1D, Summer
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+import os
+gpu_id = int(os.environ.get('CUDA_DEVICE_ID', '0'))
+device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
 
 
 class rob_hub_cc(nn.Module):            

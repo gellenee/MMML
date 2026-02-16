@@ -1,8 +1,4 @@
 import argparse
-import torch
-from utils.en_train import EnConfig, EnRun
-from utils.ch_train import ChConfig, ChRun
-from distutils.util import strtobool
 import os
 
 def main(args):
@@ -11,6 +7,11 @@ def main(args):
     print(f"Using device: {device}")
     
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+    
+    import torch
+    from utils.en_train import EnConfig, EnRun
+    from utils.ch_train import ChConfig, ChRun
+    from distutils.util import strtobool
 
     if args.dataset != 'sims':
         EnRun(EnConfig(batch_size=args.batch_size,learning_rate=args.lr,seed=args.seed, model=args.model, tasks = args.tasks,
