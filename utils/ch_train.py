@@ -199,8 +199,9 @@ def ChRun(config):
             best_epoch = epoch
         if eval_results['Mult_acc_2']>=highest_eval_acc:
             highest_eval_acc = eval_results['Mult_acc_2']
-            torch.save(model.state_dict(), config.model_save_path+f'acc_seed{config.seed}.pth')        if epoch - best_epoch >= config.early_stop:
-            break
+            torch.save(model.state_dict(), config.model_save_path+f'acc_seed{config.seed}.pth')        
+            if epoch - best_epoch >= config.early_stop:
+                break
     model.load_state_dict(torch.load(config.model_save_path+'acc.pth'))        
     test_results_loss = trainer.do_test(model, test_loader,"TEST")
     print('%s: >> ' %('TEST (highest val acc) ') + dict_to_str(test_results_loss))
