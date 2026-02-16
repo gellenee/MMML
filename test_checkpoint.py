@@ -140,7 +140,7 @@ def test_checkpoint(checkpoint_path, config=None, dataset='sims'):
 # Example usage:
 if __name__ == "__main__":
     # For SIMS dataset
-    checkpoint_path = "checkpoint/acc_seed1.pth"  # Update this path
+    checkpoint_path = "checkpoint/acc.pth"  # Update this path
     
     from utils.ch_train import ChConfig
     
