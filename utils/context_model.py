@@ -5,7 +5,7 @@ from utils.cross_attn_encoder import CMELayer, BertConfig
 import os
 
 gpu_id = int(os.environ.get('CUDA_DEVICE_ID', '0'))
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
 
 # English text model + context
 class roberta_en_context(nn.Module):
