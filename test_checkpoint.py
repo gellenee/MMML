@@ -143,6 +143,7 @@ if __name__ == "__main__":
     checkpoint_path = "checkpoint/acc.pth"  # Update this path
     
     from utils.ch_train import ChConfig
+    from utils.en_train import EnConfig
     
     ch_config = ChConfig(
         train_mode='regression',  # or 'classification'
