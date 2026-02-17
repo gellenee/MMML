@@ -144,7 +144,7 @@ if __name__ == "__main__":
     
     from utils.ch_train import ChConfig
     
-    custom_config = ChConfig(
+    ch_config = ChConfig(
         train_mode='regression',  # or 'classification'
         dataset_name='sims',
         model='cme',
@@ -154,9 +154,20 @@ if __name__ == "__main__":
         tasks='MTA',  # SIMS uses multi-task
         dropout=0.3
     )
-    
+
+    en_config = EnConfig(
+        train_mode='regression',
+        dataset_name='mosei',
+        model='cme',
+        cme_version='v1',
+        num_hidden_layers=5,
+        batch_size=8,
+        tasks='M',
+        multi_task=False,
+        dropout=0.3
+    )
     # Run test
-    test_results, val_results = test_checkpoint(checkpoint_path, config=custom_config, dataset='mosei')
+    test_results, val_results = test_checkpoint(checkpoint_path, config=en_config, dataset='mosei')
     
     # Print metrics summary
     print("\n" + "="*50)
