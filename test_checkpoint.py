@@ -156,11 +156,11 @@ if __name__ == "__main__":
     )
     
     # Run test
-    test_results, val_results = test_checkpoint(checkpoint_path, config=custom_config, dataset='sims')
+    test_results, val_results = test_checkpoint(checkpoint_path, dataset='mosei')
     
     # Print metrics summary
     print("\n" + "="*50)
-    print("SIMS Metrics Summary:")
+    print("MOSEI Metrics Summary:")
     print("="*50)
     if 'Mult_acc_2' in test_results:
         print(f"Mult_acc_2: {test_results.get('Mult_acc_2', 'N/A')}")
