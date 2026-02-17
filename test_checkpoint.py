@@ -156,7 +156,7 @@ if __name__ == "__main__":
     )
     
     # Run test
-    test_results, val_results = test_checkpoint(checkpoint_path, dataset='mosei')
+    test_results, val_results = test_checkpoint(checkpoint_path, config=custom_config, dataset='mosei')
     
     # Print metrics summary
     print("\n" + "="*50)
