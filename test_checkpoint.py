@@ -17,7 +17,7 @@ def set_seed(seed):
     np.random.seed(seed)
     torch.backends.cudnn.deterministic = True
 
-def test_checkpoint(checkpoint_path, config=None, dataset='sims'):
+def test_checkpoint(checkpoint_path, config=None, dataset='mosei'):
     """
     Load a checkpoint and test it on dataset evaluation.
     
