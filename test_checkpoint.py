@@ -171,7 +171,7 @@ if __name__ == "__main__":
                 dropout=0.3
             )
     # Run test
-    test_results, val_results = test_checkpoint(checkpoint_path, config=en_config, dataset='sims')
+    test_results, val_results = test_checkpoint(checkpoint_path, config=ch_config, dataset='sims')
     
     # Print metrics summary
     print("\n" + "="*50)
