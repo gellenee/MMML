@@ -157,16 +157,19 @@ if __name__ == "__main__":
     )
 
     en_config = EnConfig(
-        train_mode='regression',
-        dataset_name='mosei',
-        model='cme',
-        cme_version='v1',
-        num_hidden_layers=5,
-        batch_size=8,
-        tasks='M',
-        multi_task=False,
-        dropout=0.3
-    )
+                train_mode='regression',
+                dataset_name="mosei",
+                model='cme',
+                cme_version='v1',
+                num_hidden_layers=5,
+                batch_size=8,
+                context=True,
+                text_context_len=2,
+                audio_context_len=1,
+                tasks='M',
+                multi_task=False,
+                dropout=0.3
+            )
     # Run test
     test_results, val_results = test_checkpoint(checkpoint_path, config=en_config, dataset='mosei')
     
