@@ -163,7 +163,7 @@ if __name__ == "__main__":
                 cme_version='v1',
                 num_hidden_layers=5,
                 batch_size=8,
-                context=True,
+                context = False,
                 text_context_len=2,
                 audio_context_len=1,
                 tasks='M',
