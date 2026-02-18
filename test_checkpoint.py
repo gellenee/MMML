@@ -140,7 +140,7 @@ def test_checkpoint(checkpoint_path, config=None, dataset='mosei'):
 # Example usage:
 if __name__ == "__main__":
     # For SIMS dataset
-    checkpoint_path = "checkpoint/acc.pth"  # Update this path
+    checkpoint_path = "checkpoint/best_loss_mosei.pth"  # Update this path
     
     from utils.ch_train import ChConfig
     from utils.en_train import EnConfig
@@ -160,7 +160,7 @@ if __name__ == "__main__":
                 train_mode='regression',
                 dataset_name="mosei",
                 model='cme',
-                cme_version='v3',
+                cme_version='v1',
                 num_hidden_layers=5,
                 batch_size=8,
                 context = False,
