@@ -140,7 +140,7 @@ def test_checkpoint(checkpoint_path, config=None, dataset='mosei'):
 # Example usage:
 if __name__ == "__main__":
     # For SIMS dataset
-    checkpoint_path = "checkpoint/best_loss_mosei.pth"  # Update this path
+    checkpoint_path = "checkpoint/acc_seed11.pth"  # Update this path
     
     from utils.ch_train import ChConfig
     from utils.en_train import EnConfig
@@ -171,7 +171,7 @@ if __name__ == "__main__":
                 dropout=0.3
             )
     # Run test
-    test_results, val_results = test_checkpoint(checkpoint_path, config=en_config, dataset='mosei')
+    test_results, val_results = test_checkpoint(checkpoint_path, config=en_config, dataset='sims')
     
     # Print metrics summary
     print("\n" + "="*50)
