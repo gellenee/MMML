@@ -15,7 +15,7 @@ class MetricsTop():
                 'MOSI': self.__eval_mosi_regression,
                 'MOSEI': self.__eval_mosei_regression,
                 'SIMS': self.__eval_sims_regression,
-                'VCE_CUSTOM': self.__eval_vce_custom_regression
+                'VCE_CUSTOM': self.__eval_mosi_regression,
 
             }
         else:
@@ -23,7 +23,7 @@ class MetricsTop():
                 'MOSI': self.__eval_mosi_classification,
                 'MOSEI': self.__eval_mosei_classification,
                 'SIMS': self.__eval_sims_classification, 
-                'VCE_CUSTOM': self.__eval_vce_custom_classification
+                'VCE_CUSTOM': self.__eval_mosi_regression,
             }
 
     def __eval_mosi_classification(self, y_pred, y_true):
