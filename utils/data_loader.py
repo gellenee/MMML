@@ -200,7 +200,97 @@ class Dataset_mosi(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.targets_M)
     
-    
+class Dataset_vce_custom(torch.utils.data.Dataset):
+    """
+    Dataset for VCE_CUSTOM. CSV columns: transcription, video_id, audio_file, mode, text, label, pred_label.
+    Audio path = os.path.join(audio_directory, audio_file).
+    """
+    def __init__(self, csv_path, audio_directory, mode, text_context_length=2, audio_context_length=1):
+        df = pd.read_csv(csv_path)
+        df = df[df['mode'] == mode].reset_index(drop=True)
+        df = df.sort_values(by=['video_id']).reset_index(drop=True)
+
+        self.targets_M = df['label'].astype(np.float32)
+        self.texts = df['text'].apply(lambda x: str(x)[0] + str(x)[1:].lower() if len(str(x)) > 1 else str(x))
+        self.tokenizer = AutoTokenizer.from_pretrained("roberta-large")
+
+        self.audio_file_paths = []
+        for i in range(len(df)):
+            path = os.path.join(audio_directory, str(df['audio_file'].iloc[i]))
+            self.audio_file_paths.append(path)
+        self.feature_extractor = Wav2Vec2FeatureExtractor(feature_size=1, sampling_rate=16000, padding_value=0.0, do_normalize=True, return_attention_mask=True)
+
+        self.video_id = df['video_id'].values
+        self.text_context_length = text_context_length
+        self.audio_context_length = audio_context_length
+
+    def __getitem__(self, index):
+        text = str(self.texts.iloc[index])
+
+        text_context = ''
+        for i in range(1, self.text_context_length + 1):
+            if index - i < 0 or self.video_id[index] != self.video_id[index - i]:
+                break
+            else:
+                context = str(self.texts.iloc[index - i])
+                text_context = context + '</s>' + text_context
+
+        tokenized_text = self.tokenizer(
+            text,
+            max_length=96,
+            padding="max_length",
+            truncation=True,
+            add_special_tokens=True,
+            return_attention_mask=True
+        )
+        text_context = text_context[:-4] if text_context.endswith('</s>') else text_context
+        tokenized_context = self.tokenizer(
+            text_context if text_context.strip() else " ",
+            max_length=96,
+            padding="max_length",
+            truncation=True,
+            add_special_tokens=True,
+            return_attention_mask=True
+        )
+
+        sound, _ = torchaudio.load(self.audio_file_paths[index])
+        soundData = torch.mean(sound, dim=0, keepdim=False)
+
+        audio_context = torch.tensor([])
+        for i in range(1, self.audio_context_length + 1):
+            if index - i < 0 or self.video_id[index] != self.video_id[index - i]:
+                break
+            else:
+                context, _ = torchaudio.load(self.audio_file_paths[index - i])
+                contextData = torch.mean(context, dim=0, keepdim=False)
+                audio_context = torch.cat((contextData, audio_context), 0)
+
+        features = self.feature_extractor(soundData, sampling_rate=16000, max_length=96000, return_attention_mask=True, truncation=True, padding="max_length")
+        audio_features = torch.tensor(np.array(features['input_values']), dtype=torch.float32).squeeze()
+        audio_masks = torch.tensor(np.array(features['attention_mask']), dtype=torch.long).squeeze()
+
+        if len(audio_context) == 0:
+            audio_context_features = torch.zeros(96000)
+            audio_context_masks = torch.zeros(96000)
+        else:
+            features_ctx = self.feature_extractor(audio_context, sampling_rate=16000, max_length=96000, return_attention_mask=True, truncation=True, padding="max_length")
+            audio_context_features = torch.tensor(np.array(features_ctx['input_values']), dtype=torch.float32).squeeze()
+            audio_context_masks = torch.tensor(np.array(features_ctx['attention_mask']), dtype=torch.long).squeeze()
+
+        return {
+            "text_tokens": torch.tensor(tokenized_text["input_ids"], dtype=torch.long),
+            "text_masks": torch.tensor(tokenized_text["attention_mask"], dtype=torch.long),
+            "text_context_tokens": torch.tensor(tokenized_context["input_ids"], dtype=torch.long),
+            "text_context_masks": torch.tensor(tokenized_context["attention_mask"], dtype=torch.long),
+            "audio_inputs": audio_features,
+            "audio_masks": audio_masks,
+            "audio_context_inputs": audio_context_features,
+            "audio_context_masks": audio_context_masks,
+            "targets": torch.tensor(self.targets_M.iloc[index], dtype=torch.float),
+        }
+
+    def __len__(self):
+        return len(self.targets_M)
 def collate_fn_sims(batch):   
     text_tokens = []  
     text_masks = []
@@ -260,6 +350,17 @@ def data_loader(batch_size, dataset, text_context_length=2, audio_context_length
         test_data = Dataset_mosi(csv_path, audio_file_path, 'test', text_context_length=text_context_length, audio_context_length=audio_context_length)
         val_data = Dataset_mosi(csv_path, audio_file_path, 'valid', text_context_length=text_context_length, audio_context_length=audio_context_length)
         
+        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
+        val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
+        return train_loader, test_loader, val_loader
+    elif dataset.lower() == 'vce_custom':
+        csv_path = 'data/VCE_CUSTOM/label.csv'
+        audio_file_path = "data/VCE_CUSTOM/wav"
+        train_data = Dataset_vce_custom(csv_path, audio_file_path, 'train', text_context_length=text_context_length, audio_context_length=audio_context_length)
+        test_data = Dataset_vce_custom(csv_path, audio_file_path, 'test', text_context_length=text_context_length, audio_context_length=audio_context_length)
+        val_data = Dataset_vce_custom(csv_path, audio_file_path, 'valid', text_context_length=text_context_length, audio_context_length=audio_context_length)
+
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
         test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
         val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)

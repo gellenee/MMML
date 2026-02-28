@@ -1,0 +1,1 @@
+ size mismatch for CME_layers.4.audio_output.LayerNorm.bias: copying a param with shape torch.Size([768]) from checkpoint, the shape in current model is torch.Size([1024]).
