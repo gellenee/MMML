@@ -121,13 +121,14 @@ def test_checkpoint(checkpoint_path, config=None, dataset='mosei'):
     model.load_state_dict(torch.load(checkpoint_path, map_location=device))
     model.eval()
     
+    """
     # Test on test set
     print("\n" + "="*50)
     print("Testing on TEST set...")
     print("="*50)
     test_results = trainer.do_test(model, test_loader, "TEST")
     print(f'\nTEST Results: {dict_to_str(test_results)}')
-    
+    """
     # Also test on validation set if needed
     print("\n" + "="*50)
     print("Testing on VALIDATION set...")
@@ -187,3 +188,4 @@ if __name__ == "__main__":
     else:
         for key, value in test_results.items():
             print(f"{key}: {value}")
+
