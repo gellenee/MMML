@@ -140,7 +140,7 @@ def test_checkpoint(checkpoint_path, config=None, dataset='mosei'):
 # Example usage:
 if __name__ == "__main__":
     # For SIMS dataset
-    checkpoint_path = "checkpoint/best_loss_mosei_seed111_loss1.5561.pth"  # Update this path
+    checkpoint_path = "checkpoint/best_loss_VCE_CUSTOM_seed1_loss1.8320.pth"  # Update this path
     
     from utils.ch_train import ChConfig
     from utils.en_train import EnConfig
@@ -158,7 +158,7 @@ if __name__ == "__main__":
 
     en_config = EnConfig(
                 train_mode='regression',
-                dataset_name="mosei",
+                dataset_name="vce_custom",
                 model='cme',
                 cme_version='v1',
                 num_hidden_layers=5,
@@ -171,7 +171,7 @@ if __name__ == "__main__":
                 dropout=0.3
             )
     # Run test
-    test_results, val_results = test_checkpoint(checkpoint_path, config=en_config, dataset='mosei')
+    test_results, val_results = test_checkpoint(checkpoint_path, config=en_config, dataset='vce_custom')
     
     # Print metrics summary
     print("\n" + "="*50)
