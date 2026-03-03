@@ -136,7 +136,8 @@ def test_checkpoint(checkpoint_path, config=None, dataset='mosei'):
     val_results = trainer.do_test(model, val_loader, "VAL")
     print(f'\nVAL Results: {dict_to_str(val_results)}')
     
-    return test_results, val_results
+    #return test_results, val_results
+    return val_results
 
 # Example usage:
 if __name__ == "__main__":
@@ -172,9 +173,10 @@ if __name__ == "__main__":
                 dropout=0.3
             )
     # Run test
-    test_results, val_results = test_checkpoint(checkpoint_path, config=en_config, dataset='vce_custom')
-    
+    #test_results, val_results = test_checkpoint(checkpoint_path, config=en_config, dataset='vce_custom')
+    val_results = test_checkpoint(checkpoint_path, config=en_config, dataset='vce_custom')
     # Print metrics summary
+    """
     print("\n" + "="*50)
     print("MOSEI Metrics Summary:")
     print("="*50)
@@ -188,4 +190,9 @@ if __name__ == "__main__":
     else:
         for key, value in test_results.items():
             print(f"{key}: {value}")
+            """
+    print("VCE_CUSTOM (VALID) Metrics Summary:")
+    print("="*50)
+    for key, value in val_results.items():
+        print(f"{key}: {value}")
 
