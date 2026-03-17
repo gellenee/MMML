@@ -7,7 +7,7 @@ from transformers import VideoMAEImageProcessor
 # preprocess video files to have 16 frames per video
 # resizing to 224x224, normalizing pixel values
 # rearranging the dimensions into the  (Time, Channels, Height, Width) required by VideoMAE encoder
-from torchvision.io import read_video
+from torchcodec.decoders import VideoDecoder
 
 VIDEO_ROOT = "data/VCE_CUSTOM/videomae_cache" #reading from the cache folder
 NUM_FRAMES = 16
@@ -34,19 +34,29 @@ class VideoMAEClipLoader:
         """
         Returns pixel_values shaped [T, C, H, W] for VideoMAE.
         """
-        # video: [T, H, W, C], uint8
-        video, _, _ = read_video(mp4_path, pts_unit="sec")
-        if video.numel() == 0:
-            # fallback: black frames
-            frames = np.zeros((NUM_FRAMES, SIZE, SIZE, 3), dtype=np.uint8)
-        else:
-            frames_np = video.numpy()
-            idx = self._uniform_indices(frames_np.shape[0], NUM_FRAMES)
-            frames = frames_np[idx]  # [T,H,W,3]
+        from torchcodec.decoders import VideoDecoder
 
-        processed = self.processor(list(frames), return_tensors="pt")
-        # [1,T,C,H,W] -> [T,C,H,W]
-        return processed["pixel_values"].squeeze(0)
+        decoder = VideoDecoder(mp4_path)
+
+        # number of frames available (VideoDecoder behaves like a sequence)
+        n = len(decoder)
+
+        if n == 0:
+            frames_np = np.zeros((NUM_FRAMES, SIZE, SIZE, 3), dtype=np.uint8)
+        else:
+            idx = self._uniform_indices(n, NUM_FRAMES).tolist()
+            frames = decoder.get_frames_at(indices=idx)  # Tensor, batch of frames
+
+            # Convert to what VideoMAEImageProcessor expects:
+            # Depending on torchcodec version, frames are commonly [T,H,W,C] uint8.
+            # If you get [T,C,H,W], do frames = frames.permute(0,2,3,1).
+            if frames.ndim == 4 and frames.shape[1] == 3:
+                frames = frames.permute(0, 2, 3, 1).contiguous()
+
+            frames_np = frames.cpu().numpy()  # [T,H,W,C], uint8
+
+        processed = self.processor(list(frames_np), return_tensors="pt")
+        return processed["pixel_values"].squeeze(0)  # [T,C,H,W]
 
 # creates dataset to be used by the dataloader for video-text training
 class Dataset_vce_custom_text_video(Dataset):
