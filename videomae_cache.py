@@ -22,7 +22,9 @@ def main():
     failed_decode = 0
 
     for i, row in df.iterrows():
-        vid = str(row["video_id"])
+        vid_raw = str(row["video_id"])
+        # If raw videos are zero-padded (e.g. 00042.mp4), pad numeric IDs to 5 digits.
+        vid = vid_raw.zfill(5) if vid_raw.isdigit() else vid_raw
         mp4 = os.path.join(RAW_ROOT, vid + ".mp4")  # adjust if nested dirs
 
         if not os.path.isfile(mp4):
