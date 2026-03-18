@@ -16,26 +16,42 @@ def main():
     df = pd.read_csv(LABEL_CSV)
     loader = VideoMAEClipLoader()
 
+    kept_rows = []
     cache_paths = []
+    missing = 0
+    failed_decode = 0
 
     for i, row in df.iterrows():
         vid = str(row["video_id"])
         mp4 = os.path.join(RAW_ROOT, vid + ".mp4")  # adjust if nested dirs
 
         if not os.path.isfile(mp4):
-            raise FileNotFoundError(f"Video file not found: {mp4}")
+            missing += 1
+            print(f"[skip missing] {mp4}")
+            continue
 
-        pixel_values = loader.load_pixel_values(mp4)  # [T,C,H,W]
+        try:
+            pixel_values = loader.load_pixel_values(mp4)  # [T,C,H,W]
+        except Exception as e:
+            failed_decode += 1
+            print(f"[skip decode error] {mp4} ({type(e).__name__}: {e})")
+            continue
 
         out_path = os.path.join(CACHE_ROOT, vid + ".pt")
         torch.save(pixel_values, out_path)
 
         # store relative path under CACHE_ROOT
+        kept_rows.append(i)
         cache_paths.append(os.path.relpath(out_path, CACHE_ROOT))
 
-    df["video_cache_file"] = cache_paths
-    df.to_csv(OUT_CSV, index=False)
+    out_df = df.iloc[kept_rows].copy()
+    out_df["video_cache_file"] = cache_paths
+    out_df.to_csv(OUT_CSV, index=False)
     print(f"Saved cache CSV to {OUT_CSV}")
+    print(
+        f"Done. cached={len(out_df)}/{len(df)} "
+        f"(missing={missing}, decode_errors={failed_decode})."
+    )
 
 
 if __name__ == "__main__":
