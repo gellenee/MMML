@@ -3,11 +3,11 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from transformers import VideoMAEImageProcessor
+from decord import VideoReader, cpu
 
 # preprocess video files to have 16 frames per video
 # resizing to 224x224, normalizing pixel values
 # rearranging the dimensions into the  (Time, Channels, Height, Width) required by VideoMAE encoder
-from torchcodec.decoders import VideoDecoder
 
 VIDEO_ROOT = "data/VCE_CUSTOM/videomae_cache" #reading from the cache folder
 NUM_FRAMES = 16
@@ -34,26 +34,15 @@ class VideoMAEClipLoader:
         """
         Returns pixel_values shaped [T, C, H, W] for VideoMAE.
         """
-        from torchcodec.decoders import VideoDecoder
-
-        decoder = VideoDecoder(mp4_path)
-
-        # number of frames available (VideoDecoder behaves like a sequence)
-        n = len(decoder)
+        vr = VideoReader(mp4_path, ctx=cpu(0))
+        n = len(vr)
 
         if n == 0:
             frames_np = np.zeros((NUM_FRAMES, SIZE, SIZE, 3), dtype=np.uint8)
         else:
-            idx = self._uniform_indices(n, NUM_FRAMES).tolist()
-            frames = decoder.get_frames_at(indices=idx)  # Tensor, batch of frames
-
-            # Convert to what VideoMAEImageProcessor expects:
-            # Depending on torchcodec version, frames are commonly [T,H,W,C] uint8.
-            # If you get [T,C,H,W], do frames = frames.permute(0,2,3,1).
-            if frames.ndim == 4 and frames.shape[1] == 3:
-                frames = frames.permute(0, 2, 3, 1).contiguous()
-
-            frames_np = frames.cpu().numpy()  # [T,H,W,C], uint8
+            idx = self._uniform_indices(n, NUM_FRAMES).astype(np.int64)
+            frames = vr.get_batch(idx)  # decord NDArray, [T,H,W,C], uint8
+            frames_np = frames.asnumpy()
 
         processed = self.processor(list(frames_np), return_tensors="pt")
         return processed["pixel_values"].squeeze(0)  # [T,C,H,W]
