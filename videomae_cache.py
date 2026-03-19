@@ -4,10 +4,10 @@ import pandas as pd
 
 from utils.video_data import VideoMAEClipLoader
 
-RAW_ROOT = "data/VCE_CUSTOM/raw"
-CACHE_ROOT = "data/VCE_CUSTOM/videomae_cache"
-LABEL_CSV = "data/VCE_CUSTOM/labels.csv"
-OUT_CSV = "data/VCE_CUSTOM/labels_with_video_cache.csv"
+RAW_ROOT = "data/VCE_CUSTOM/Raw"
+CACHE_ROOT = "data/VCE/videomae_cache"
+LABEL_CSV = "data/VCE_CUSTOM/label.csv"
+OUT_CSV = "data/VCE/labels_with_video_cache.csv"
 
 
 def main():
