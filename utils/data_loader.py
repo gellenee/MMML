@@ -5,6 +5,7 @@ import transformers
 import torchaudio
 from transformers import AutoTokenizer, Wav2Vec2FeatureExtractor
 from torch.utils.data import DataLoader
+from utils.video_data import collate_vce_text_video, Dataset_vce_custom_text_video
 
 import pandas as pd
 import numpy as np
@@ -501,7 +502,7 @@ def collate_vce_custom_tav(batch):
         "targets": torch.stack([b["targets"] for b in batch], dim=0),  # [B]
     }
 
-def data_loader(batch_size, dataset, text_context_length=2, audio_context_length=1):
+def data_loader(batch_size, dataset, modalities = "TA", text_context_length=2, audio_context_length=1):
     if dataset == 'mosi':
         csv_path = 'data/MOSI/label.csv'
         audio_file_path = "data/MOSI/wav"
@@ -525,16 +526,44 @@ def data_loader(batch_size, dataset, text_context_length=2, audio_context_length
         val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
         return train_loader, test_loader, val_loader
     elif dataset.lower() == 'vce_custom':
-        csv_path = 'data/VCE_CUSTOM/label.csv'
         audio_file_path = "data/VCE_CUSTOM/wav"
-        train_data = Dataset_vce_custom(csv_path, audio_file_path, 'train', text_context_length=text_context_length, audio_context_length=audio_context_length)
-        test_data = Dataset_vce_custom(csv_path, audio_file_path, 'test', text_context_length=text_context_length, audio_context_length=audio_context_length)
-        val_data = Dataset_vce_custom(csv_path, audio_file_path, 'valid', text_context_length=text_context_length, audio_context_length=audio_context_length)
-
-        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
-        val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
-        return train_loader, test_loader, val_loader
+        if "V" in modalities:
+            # use video cached pt files
+            csv_path = "data/VCE_CUSTOM/labels_with_video_cache.csv"
+            if "A" in modalities:
+                # T+A+V (+ context) dataset
+                train_data = Dataset_vce_custom_tav(
+                    csv_path, audio_file_path, "train",
+                    text_context_length=text_context_length,
+                    audio_context_length=audio_context_length,
+                )
+                test_data = Dataset_vce_custom_tav(
+                    csv_path, audio_file_path, "test",
+                    text_context_length=text_context_length,
+                    audio_context_length=audio_context_length,
+                )
+                val_data = Dataset_vce_custom_tav(
+                    csv_path, audio_file_path, "valid",
+                    text_context_length=text_context_length,
+                    audio_context_length=audio_context_length)
+                train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, collate_fn=collate_vce_custom_tav)
+                test_loader  = DataLoader(test_data,  batch_size=batch_size, shuffle=False, collate_fn=collate_vce_custom_tav)
+                val_loader   = DataLoader(val_data,   batch_size=batch_size, shuffle=False, collate_fn=collate_vce_custom_tav)
+                return train_loader, test_loader, val_loader
+            else:
+                #only text and video, no audio context tensors
+                df = pd.read_csv(csv_path)
+                tokenizer = AutoTokenizer.from_pretrained("roberta-large")
+                train_df = df[df["mode"] == "train"].reset_index(drop=True)
+                test_df  = df[df["mode"] == "test"].reset_index(drop=True)
+                val_df   = df[df["mode"] == "valid"].reset_index(drop=True)
+                train_data = Dataset_vce_custom_text_video(train_df, tokenizer)
+                test_data  = Dataset_vce_custom_text_video(test_df, tokenizer)
+                val_data   = Dataset_vce_custom_text_video(val_df, tokenizer)
+                train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, collate_fn=collate_vce_text_video)
+                test_loader  = DataLoader(test_data,  batch_size=batch_size, shuffle=False, collate_fn=collate_vce_text_video)
+                val_loader   = DataLoader(val_data,   batch_size=batch_size, shuffle=False, collate_fn=collate_vce_text_video)
+                return train_loader, test_loader, val_loader
     else:
         csv_path = 'data/SIMS/label.csv'
         audio_file_path = "data/SIMS/wav"
