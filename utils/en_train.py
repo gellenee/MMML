@@ -48,6 +48,8 @@ class EnConfig(object):
                  context = True,
                  text_context_len = 2,
                  audio_context_len = 1,
+                 modalities = 'TV',
+                 
                 ):
 
         self.train_mode = train_mode
@@ -69,6 +71,7 @@ class EnConfig(object):
         self.context = context
         self.text_context_len = text_context_len
         self.audio_context_len = audio_context_len
+        self.modalities = modalities
 
         
         
