@@ -130,6 +130,7 @@ class BertAttention(nn.Module):
         if attention_mask is not None:
             attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
             attention_mask = attention_mask.expand((-1,attention_scores.size(1),attention_scores.size(2),-1))
+            attention_mask = attention_mask.float()
             attention_mask = attention_mask.masked_fill(attention_mask == 0, float('-inf'))
             attention_mask = attention_mask.masked_fill(attention_mask == 1, 0.0)
             #print(attention_mask.size())
