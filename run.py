@@ -21,7 +21,8 @@ def main(args):
     if args.dataset != 'sims':
         EnRun(EnConfig(batch_size=args.batch_size,learning_rate=args.lr,seed=args.seed, model=args.model, tasks = args.tasks,
                                     cme_version=args.cme_version, dataset_name=args.dataset,num_hidden_layers=args.num_hidden_layers,
-                                    context=args.context, text_context_len=args.text_context_len, audio_context_len=args.audio_context_len))
+                                    context=args.context, text_context_len=args.text_context_len, audio_context_len=args.audio_context_len,
+                                    modalities=args.modalities, ))
     else:
         ChRun(ChConfig(batch_size=args.batch_size,learning_rate=args.lr,seed=args.seed, model=args.model, tasks = args.tasks,
                                     cme_version=args.cme_version, num_hidden_layers=args.num_hidden_layers))
@@ -40,6 +41,13 @@ if __name__ == "__main__":
     parser.add_argument('--text_context_len', type=int, default=2)
     parser.add_argument('--audio_context_len', type=int, default=1)
     parser.add_argument('--gpu', type=int, default=0, help='GPU device ID to use (default: 0)')
+    parser.add_argument(
+    '--modalities',
+    type=str,
+    default='TV',
+    choices=['TA', 'TV', 'TAV'],
+    help='Which modalities to use inside CME: TA, TV, or TAV'
+)
     args = parser.parse_args()
     main(args)
 

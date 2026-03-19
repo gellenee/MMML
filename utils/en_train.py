@@ -4,6 +4,7 @@ from tqdm import tqdm
 from utils.metricsTop import MetricsTop
 from utils.context_model import rob_d2v_cc_context, rob_d2v_cme_context
 from utils.en_model import rob_d2v_cc, rob_d2v_cme
+from utils.en_model_tav import rob_d2v_videomae_cme
 import random
 import numpy as np
 from utils.data_loader import data_loader
@@ -30,6 +31,7 @@ class EnConfig(object):
                     'M':1,
                     'T':1,
                     'A':1,
+                    'V':1,
                 },
                  model_save_path = 'checkpoint/',
                  learning_rate = 1e-5,
@@ -116,28 +118,35 @@ class EnTrainer():
                 )
             else:
                 audio_inputs = batch["audio_inputs"].to(device)
-            audio_mask = batch["audio_masks"].to(device)
-            if self.config.context:
-                text_context_inputs = batch["text_context_tokens"].to(device)
-                text_context_mask = batch["text_context_masks"].to(device)
-                audio_context_inputs = batch["audio_context_inputs"].to(device)
-                audio_context_mask = batch["audio_context_masks"].to(device)
-                outputs = model(
-                    text_inputs,
-                    text_mask,
-                    text_context_inputs,
-                    text_context_mask,
-                    audio_inputs,
-                    audio_mask,
-                    audio_context_inputs,
-                    audio_context_mask,
-                )
+                audio_mask = batch["audio_masks"].to(device)
+                if self.config.context:
+                    text_context_inputs = batch["text_context_tokens"].to(device)
+                    text_context_mask = batch["text_context_masks"].to(device)
+                    audio_context_inputs = batch["audio_context_inputs"].to(device)
+                    audio_context_mask = batch["audio_context_masks"].to(device)
+                    outputs = model(
+                        text_inputs,
+                        text_mask,
+                        text_context_inputs,
+                        text_context_mask,
+                        audio_inputs,
+                        audio_mask,
+                        audio_context_inputs,
+                        audio_context_mask,
+                    )
+                else:
+                    outputs = model(
+                        text_inputs,
+                        text_mask,
+                        audio_inputs,
+                        audio_mask,
+                    )
             
             # Compute the training loss.
             if self.config.multi_task:
-                active_tasks = [t for t in self.tasks if (t in outputs and tr in self.config.loss_weights)]
+                active_tasks = [t for t in self.tasks if (t in outputs and t in self.config.loss_weights)]
                 loss = 0.0         
-                for m in self.tasks:
+                for m in active_tasks:
                     sub_loss = self.config.loss_weights[m] * self.criterion(outputs[m], targets)
                     loss += sub_loss
     #                 train_loss[m] += sub_loss.item()*text_inputs.size(0)
@@ -223,7 +232,7 @@ class EnTrainer():
                 # Compute loss.
                 if self.config.multi_task:
                     if active_tasks is None:
-                        active_tasks = [t for t in self.tasks if (t in outputs and tr in self.config.loss_weights)]
+                        active_tasks = [t for t in self.tasks if (t in outputs and t in self.config.loss_weights)]
                         y_pred = {t: [] for t in active_tasks}
                         y_true = {t: [] for t in active_tasks}
                         val_loss = {t: 0.0 for t in active_tasks}

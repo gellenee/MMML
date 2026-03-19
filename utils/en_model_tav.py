@@ -20,7 +20,7 @@ class rob_d2v_videomae_cme(nn.Module):
         # Audio encoder (keep existing)
         self.data2vec = Data2VecAudioModel.from_pretrained("facebook/data2vec-audio-base")
 
-        # Video encoder (new)
+        # Video encoder
         self.videomae = VideoMAEEncoder(pretrained_name=getattr(config, "videomae_name", "MCG-NJU/videomae-base"))
 
         # Learnable CLS tokens for CME streams
@@ -69,7 +69,7 @@ class rob_d2v_videomae_cme(nn.Module):
         t_pooled = t_out["pooler_output"]             # [B, 768]
         t_pred = self.T_head(t_pooled)
 
-        # --- Audio (optional) ---
+        # --- Audio ---
         a_pred, a_tokens, a_mask_used, a_pooled = None, None, None, None
         if "A" in self.modalities:
             a_out = self.data2vec(audio_inputs, audio_mask, return_dict=True)
@@ -80,7 +80,7 @@ class rob_d2v_videomae_cme(nn.Module):
             a_pred = self.A_head(a_pooled)
             a_mask_used = audio_mask
 
-        # --- Video (optional) ---
+        # --- Video ---
         v_pred, v_tokens, v_mask_used, v_pooled = None, None, None, None
         if "V" in self.modalities:
             v_tokens, v_pooled = self.videomae(video_pixel_values)   # tokens [B,Sv,768], pooled [B,768]
