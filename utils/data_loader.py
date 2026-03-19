@@ -529,7 +529,7 @@ def data_loader(batch_size, dataset, modalities = "TA", text_context_length=2, a
         audio_file_path = "data/VCE_CUSTOM/wav"
         if "V" in modalities:
             # use video cached pt files
-            csv_path = "data/VCE_CUSTOM/labels_with_video_cache.csv"
+            csv_path = "data/VCE/labels_with_video_cache.csv"
             if "A" in modalities:
                 # T+A+V (+ context) dataset
                 train_data = Dataset_vce_custom_tav(

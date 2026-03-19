@@ -9,7 +9,7 @@ from decord import VideoReader, cpu
 # resizing to 224x224, normalizing pixel values
 # rearranging the dimensions into the  (Time, Channels, Height, Width) required by VideoMAE encoder
 
-VIDEO_ROOT = "data/VCE_CUSTOM/videomae_cache" #reading from the cache folder
+VIDEO_ROOT = "data/VCE/videomae_cache" #reading from the cache folder
 NUM_FRAMES = 16
 SIZE = 224
 
