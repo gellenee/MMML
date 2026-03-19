@@ -88,29 +88,54 @@ class EnTrainer():
         optimizer = torch.optim.AdamW(model.parameters(), lr=self.config.learning_rate)
 
         total_loss = 0
+        dataset_len = len(data_loader.dataset)
+
+        use_video = "V" in self.config.modalities
+        use_audio = "A" in self.config.modalities
         # Loop over all batches.         
         for batch in tqdm(data_loader):                    
             text_inputs = batch["text_tokens"].to(device)
             text_mask = batch["text_masks"].to(device)
-            text_context_inputs = batch["text_context_tokens"].to(device)
-            text_context_mask = batch["text_context_masks"].to(device)
-
-            audio_inputs = batch["audio_inputs"].to(device)
-            audio_mask = batch["audio_masks"].to(device)
-            audio_context_inputs = batch["audio_context_inputs"].to(device)
-            audio_context_mask = batch["audio_context_masks"].to(device)
-
             targets = batch["targets"].to(device).view(-1, 1)
+            optimizer.zero_grad()
 
-            optimizer.zero_grad()                    # To zero out the gradients.
+            if use_video:
+                video_pixel_values = batch["video_pixel_values"].to(device)
 
-            if self.config.context:
-                outputs = model(text_inputs, text_mask, text_context_inputs, text_context_mask, audio_inputs, audio_mask, audio_context_inputs, audio_context_mask)
+                video_mask = batch["video_mask"].to(device) if "video_mask" in batch else None
+                
+                audio_inputs = batch["audio_inputs"].to(device) if use_audio and "audio_inputs" in batch else None
+                audio_mask = batch["audio_masks"].to(device) if use_audio and "audio_masks" in batch else None
+                outputs = model(
+                text_inputs,
+                text_mask,
+                audio_inputs=audio_inputs,
+                audio_mask=audio_mask,
+                video_pixel_values=video_pixel_values,
+                video_mask=video_mask,
+                )
             else:
-                outputs = model(text_inputs, text_mask, audio_inputs, audio_mask)
+                audio_inputs = batch["audio_inputs"].to(device)
+            audio_mask = batch["audio_masks"].to(device)
+            if self.config.context:
+                text_context_inputs = batch["text_context_tokens"].to(device)
+                text_context_mask = batch["text_context_masks"].to(device)
+                audio_context_inputs = batch["audio_context_inputs"].to(device)
+                audio_context_mask = batch["audio_context_masks"].to(device)
+                outputs = model(
+                    text_inputs,
+                    text_mask,
+                    text_context_inputs,
+                    text_context_mask,
+                    audio_inputs,
+                    audio_mask,
+                    audio_context_inputs,
+                    audio_context_mask,
+                )
             
             # Compute the training loss.
             if self.config.multi_task:
+                active_tasks = [t for t in self.tasks if (t in outputs and tr in self.config.loss_weights)]
                 loss = 0.0         
                 for m in self.tasks:
                     sub_loss = self.config.loss_weights[m] * self.criterion(outputs[m], targets)
@@ -130,52 +155,88 @@ class EnTrainer():
 
     def do_test(self, model, data_loader, mode):
         model.eval()   # Put the model in eval mode.
+
+        use_video = "V" in self.config.modalities
+        use_audio = "A" in self.config.modalities
+
+
+        dataset_len = len(data_loader.dataset)
+        total_loss = 0.0
+
+        active_tasks = None
+        y_pred = None
+        y_true = None
+        val_loss = None
+
         if self.config.multi_task:
-            y_pred = {'M': [], 'T': [], 'A': []}
-            y_true = {'M': [], 'T': [], 'A': []}
-            total_loss = 0
-            val_loss = {
-                'M':0,
-                'T':0,
-                'A':0
-            }
+            pass
         else:
             y_pred = []
             y_true = []
-            total_loss = 0
 
         with torch.no_grad():
             for batch in tqdm(data_loader):                    # Loop over all batches.
                 text_inputs = batch["text_tokens"].to(device)
                 text_mask = batch["text_masks"].to(device)
-                text_context_inputs = batch["text_context_tokens"].to(device)
-                text_context_mask = batch["text_context_masks"].to(device)
-
-                audio_inputs = batch["audio_inputs"].to(device)
-                audio_mask = batch["audio_masks"].to(device)
-                audio_context_inputs = batch["audio_context_inputs"].to(device)
-                audio_context_mask = batch["audio_context_masks"].to(device)
-
                 targets = batch["targets"].to(device).view(-1, 1)
+            
+                if use_video:
+                    video_pixel_values = batch["video_pixel_values"].to(device)
+                    video_mask = batch["video_mask"].to(device) if "video_mask" in batch else None
 
-                if self.config.context:
-                    outputs = model(text_inputs, text_mask, text_context_inputs, text_context_mask, audio_inputs,
-                                    audio_mask, audio_context_inputs, audio_context_mask)
+                    audio_inputs = batch["audio_inputs"].to(device) if use_audio and "audio_inputs" in batch else None
+                    audio_mask = batch["audio_masks"].to(device) if use_audio and "audio_masks" in batch else None
+                    outputs = model(
+                        text_inputs,
+                        text_mask,
+                        audio_inputs=audio_inputs,
+                        audio_mask=audio_mask,
+                        video_pixel_values=video_pixel_values,
+                        video_mask=video_mask,
+                    )
                 else:
-                    outputs = model(text_inputs, text_mask, audio_inputs, audio_mask)
-                
+                    audio_inputs = batch["audio_inputs"].to(device)
+                    audio_mask = batch["audio_masks"].to(device)
+                    if self.config.context:
+                        text_context_inputs = batch["text_context_tokens"].to(device)
+                        text_context_mask = batch["text_context_masks"].to(device)
+                        audio_context_inputs = batch["audio_context_inputs"].to(device)
+                        audio_context_mask = batch["audio_context_masks"].to(device)
+                        outputs = model(
+                            text_inputs,
+                            text_mask,
+                            text_context_inputs,
+                            text_context_mask,
+                            audio_inputs,
+                            audio_mask,
+                            audio_context_inputs,
+                            audio_context_mask,
+                        )
+                    else:
+                        outputs = model(
+                            text_inputs,
+                            text_mask,
+                            audio_inputs,
+                            audio_mask,
+                        )
+
                 # Compute loss.
                 if self.config.multi_task:
+                    if active_tasks is None:
+                        active_tasks = [t for t in self.tasks if (t in outputs and tr in self.config.loss_weights)]
+                        y_pred = {t: [] for t in active_tasks}
+                        y_true = {t: [] for t in active_tasks}
+                        val_loss = {t: 0.0 for t in active_tasks}
+
                     loss = 0.0         
-                    for m in self.tasks:
+                    for m in active_tasks:
                         sub_loss = self.config.loss_weights[m] * self.criterion(outputs[m], targets)
                         loss += sub_loss
                         val_loss[m] += sub_loss.item()*text_inputs.size(0)
-                    total_loss += loss.item()*text_inputs.size(0)
-                    # add predictions
-                    for m in self.tasks:
                         y_pred[m].append(outputs[m].cpu())
                         y_true[m].append(targets.cpu())
+                    total_loss += loss.item()*text_inputs.size(0)
+                    
                 else:
                     loss = self.criterion(outputs['M'], targets)        
                     total_loss += loss.item()*text_inputs.size(0)
@@ -183,31 +244,33 @@ class EnTrainer():
                     # add predictions
                     y_pred.append(outputs['M'].cpu())
                     y_true.append(targets.cpu())
-
+        # aggregate results
         if self.config.multi_task:
-            for m in self.tasks:
+
+            for m in active_tasks:
                 val_loss[m] = round(val_loss[m] / len(data_loader.dataset), 4)
-            total_loss = round(total_loss / len(data_loader.dataset), 4)
-            print(mode+" >> loss: ",total_loss, "   M_loss: ", val_loss['M'], "  T_loss: ", val_loss['T'], "  A_loss: ", val_loss['A'])
+            total_loss = round(val_loss[m] /dataset_len, 4)
+            loss_str = " ".join([f"{m}_loss: {val_loss[m]:.4f}" for m in active_tasks])
+            print(mode + " >> loss: ", total_loss, "   " + loss_str)
 
             eval_results = {}
-            for m in self.tasks:
+            for m in active_tasks:
                 pred, true = torch.cat(y_pred[m]), torch.cat(y_true[m])
                 results = self.metrics(pred, true)
                 print('%s: >> ' %(m) + dict_to_str(results))
                 eval_results[m] = results
-            eval_results = eval_results[self.tasks[0]]
+            primary_task = self.tasks[0] if self.tasks[0] in eval_results else "M"
+            eval_results = eval_results[primary_task] if primary_task in eval_results else eval_results[active_tasks[0]]
             eval_results['Loss'] = total_loss 
+            return eval_results
         else:
-            total_loss = round(total_loss / len(data_loader.dataset), 4)
-            print(mode+" >> loss: ",total_loss)
+            total_loss = round(total_loss / dataset_len, 4)
+            print(mode + " >> loss: ", total_loss)
 
             pred, true = torch.cat(y_pred), torch.cat(y_true)
             eval_results = self.metrics(pred, true)
-            print('%s: >> ' %('M') + dict_to_str(eval_results))
             eval_results['Loss'] = total_loss
-        
-        return eval_results
+            return eval_results
 
 
 def EnRun(config):
@@ -217,24 +280,28 @@ def EnRun(config):
     np.random.seed(config.seed)
     torch.backends.cudnn.deterministic = True
 
-    train_loader, test_loader, val_loader = data_loader(config.batch_size, config.dataset_name,
+    train_loader, test_loader, val_loader = data_loader(config.batch_size, config.dataset_name, modalities=config.modalities,
                                                         text_context_length=config.text_context_len,
                                                         audio_context_length=config.audio_context_len)
 
-    if config.context:
-        if config.model == 'cc':
-            model = rob_d2v_cc_context(config).to(device)
-        elif config.model == 'cme':
-            model = rob_d2v_cme_context(config).to(device)
-        for param in model.data2vec_model.feature_extractor.parameters():
-            param.requires_grad = False
+    use_video = "V" in config.modalities
+    if use_video:
+        model = rob_d2v_videomae_cme(config).to(device)
     else:
-        if config.model == 'cc':
-            model = rob_d2v_cc(config).to(device)
-        elif config.model == 'cme':
-            model = rob_d2v_cme(config).to(device)
-        for param in model.data2vec_model.feature_extractor.parameters():
-            param.requires_grad = False
+        if config.context:
+            if config.model == 'cc':
+                model = rob_d2v_cc_context(config).to(device)
+            elif config.model == 'cme':
+                model = rob_d2v_cme_context(config).to(device)
+            for param in model.data2vec_model.feature_extractor.parameters():
+                param.requires_grad = False
+        else:
+            if config.model == 'cc':
+                model = rob_d2v_cc(config).to(device)
+            elif config.model == 'cme':
+                model = rob_d2v_cme(config).to(device)
+            for param in model.data2vec_model.feature_extractor.parameters():
+                param.requires_grad = False
 
     trainer = EnTrainer(config)
 
