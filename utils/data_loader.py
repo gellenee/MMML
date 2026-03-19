@@ -292,6 +292,161 @@ class Dataset_vce_custom(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.targets_M)
+    
+class Dataset_vce_custom_tav(torch.utils.data.Dataset):
+    """
+    VCE_CUSTOM dataset yielding text, audio(+context), and cached video clips.
+
+    Expects CSV `data/VCE_CUSTOM/labels_with_video_cache.csv` columns:
+      - video_id
+      - audio_file
+      - text
+      - label
+      - mode (train/test/valid)
+      - video_cache_file (relative .pt path under data/VCE_CUSTOM/videomae_cache)
+    """
+    def __init__(self, csv_path, audio_directory, mode,
+                 text_context_length=2, audio_context_length=1):
+
+        from transformers import AutoTokenizer, Wav2Vec2FeatureExtractor
+
+        df = pd.read_csv(csv_path)
+        df = df[df["mode"] == mode].reset_index(drop=True)
+        df = df.sort_values(by=["video_id"]).reset_index(drop=True)
+
+        # labels
+        self.targets_M = df["label"].astype(np.float32)
+
+        # text
+        self.texts = df["text"].apply(
+            lambda x: str(x)[0] + str(x)[1:].lower() if len(str(x)) > 1 else str(x)
+        )
+        self.tokenizer = AutoTokenizer.from_pretrained("roberta-large")
+
+        # audio
+        self.audio_file_paths = [
+            os.path.join(audio_directory, str(f)) for f in df["audio_file"].tolist()
+        ]
+        self.feature_extractor = Wav2Vec2FeatureExtractor(
+            feature_size=1,
+            sampling_rate=16000,
+            padding_value=0.0,
+            do_normalize=True,
+            return_attention_mask=True,
+        )
+
+        # video cache
+        self.video_cache_files = df["video_cache_file"].astype(str).tolist()
+        self.video_cache_root = "data/VCE_CUSTOM/videomae_cache"
+
+        # context bookkeeping
+        self.video_id = df["video_id"].values
+        self.text_context_length = text_context_length
+        self.audio_context_length = audio_context_length
+
+    def __len__(self):
+        return len(self.targets_M)
+
+    def __getitem__(self, index):
+
+
+        # --- text ---
+        text = str(self.texts.iloc[index])
+
+        # text context
+        text_context = ""
+        for i in range(1, self.text_context_length + 1):
+            if index - i < 0 or self.video_id[index] != self.video_id[index - i]:
+                break
+            context = str(self.texts.iloc[index - i])
+            text_context = context + "</s>" + text_context
+
+        tokenized_text = self.tokenizer(
+            text,
+            max_length=96,
+            padding="max_length",
+            truncation=True,
+            add_special_tokens=True,
+            return_attention_mask=True,
+        )
+        text_context = text_context[:-4] if text_context.endswith("</s>") else text_context
+        tokenized_context = self.tokenizer(
+            text_context if text_context.strip() else " ",
+            max_length=96,
+            padding="max_length",
+            truncation=True,
+            add_special_tokens=True,
+            return_attention_mask=True,
+        )
+
+        # --- audio ---
+        sound, _ = torchaudio.load(self.audio_file_paths[index])
+        soundData = torch.mean(sound, dim=0, keepdim=False)
+
+        # audio context
+        audio_context = torch.tensor([])
+        for i in range(1, self.audio_context_length + 1):
+            if index - i < 0 or self.video_id[index] != self.video_id[index - i]:
+                break
+            context, _ = torchaudio.load(self.audio_file_paths[index - i])
+            contextData = torch.mean(context, dim=0, keepdim=False)
+            audio_context = torch.cat((contextData, audio_context), 0)
+
+        features = self.feature_extractor(
+            soundData,
+            sampling_rate=16000,
+            max_length=96000,
+            return_attention_mask=True,
+            truncation=True,
+            padding="max_length",
+        )
+        audio_features = torch.tensor(
+            np.array(features["input_values"]), dtype=torch.float32
+        ).squeeze()
+        audio_masks = torch.tensor(
+            np.array(features["attention_mask"]), dtype=torch.long
+        ).squeeze()
+
+        if len(audio_context) == 0:
+            audio_context_features = torch.zeros(96000)
+            audio_context_masks = torch.zeros(96000)
+        else:
+            features_ctx = self.feature_extractor(
+                audio_context,
+                sampling_rate=16000,
+                max_length=96000,
+                return_attention_mask=True,
+                truncation=True,
+                padding="max_length",
+            )
+            audio_context_features = torch.tensor(
+                np.array(features_ctx["input_values"]), dtype=torch.float32
+            ).squeeze()
+            audio_context_masks = torch.tensor(
+                np.array(features_ctx["attention_mask"]), dtype=torch.long
+            ).squeeze()
+
+        # --- video from cache ---
+        cache_rel = self.video_cache_files[index]
+        cache_path = os.path.join(self.video_cache_root, cache_rel)
+        video_pixel_values = torch.load(cache_path)  # [T,C,H,W]
+
+        return {
+            "text_tokens": torch.tensor(tokenized_text["input_ids"], dtype=torch.long),
+            "text_masks": torch.tensor(tokenized_text["attention_mask"], dtype=torch.long),
+            "text_context_tokens": torch.tensor(
+                tokenized_context["input_ids"], dtype=torch.long
+            ),
+            "text_context_masks": torch.tensor(
+                tokenized_context["attention_mask"], dtype=torch.long
+            ),
+            "audio_inputs": audio_features,
+            "audio_masks": audio_masks,
+            "audio_context_inputs": audio_context_features,
+            "audio_context_masks": audio_context_masks,
+            "video_pixel_values": video_pixel_values,  # [T,C,H,W]
+            "targets": torch.tensor(self.targets_M.iloc[index], dtype=torch.float),
+        }
 def collate_fn_sims(batch):   
     text_tokens = []  
     text_masks = []
@@ -330,7 +485,21 @@ def collate_fn_sims(batch):
                     "A": torch.tensor(targets_A, dtype=torch.float32)
                 }
             }   
+def collate_vce_custom_tav(batch):
+    return {
+        "text_tokens": torch.stack([b["text_tokens"] for b in batch], dim=0),
+        "text_masks": torch.stack([b["text_masks"] for b in batch], dim=0),
+        "text_context_tokens": torch.stack([b["text_context_tokens"] for b in batch], dim=0),
+        "text_context_masks": torch.stack([b["text_context_masks"] for b in batch], dim=0),
 
+        "audio_inputs": torch.stack([b["audio_inputs"] for b in batch], dim=0),
+        "audio_masks": torch.stack([b["audio_masks"] for b in batch], dim=0),
+        "audio_context_inputs": torch.stack([b["audio_context_inputs"] for b in batch], dim=0),
+        "audio_context_masks": torch.stack([b["audio_context_masks"] for b in batch], dim=0),
+
+        "video_pixel_values": torch.stack([b["video_pixel_values"] for b in batch], dim=0),  # [B,T,C,H,W]
+        "targets": torch.stack([b["targets"] for b in batch], dim=0),  # [B]
+    }
 
 def data_loader(batch_size, dataset, text_context_length=2, audio_context_length=1):
     if dataset == 'mosi':
