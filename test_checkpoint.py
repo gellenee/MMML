@@ -70,6 +70,7 @@ def test_checkpoint(checkpoint_path, config=None, dataset='mosei'):
         from utils.en_train import EnConfig, EnTrainer
         from utils.context_model import rob_d2v_cc_context, rob_d2v_cme_context
         from utils.en_model import rob_d2v_cc, rob_d2v_cme
+        from utils.en_model_tav import rob_d2v_videomae_cme #adding for tav compatibility
         
         if config is None:
             config = EnConfig(
@@ -92,26 +93,30 @@ def test_checkpoint(checkpoint_path, config=None, dataset='mosei'):
         train_loader, test_loader, val_loader = data_loader(
             config.batch_size, 
             config.dataset_name,
+            modalities = getattr(config, "modalities", "TV"),
             text_context_length=config.text_context_len,
             audio_context_length=config.audio_context_len
         )
         
         # Initialize English model
         print("Initializing model...")
-        if config.context:
-            if config.model == 'cc':
-                model = rob_d2v_cc_context(config).to(device)
-            elif config.model == 'cme':
-                model = rob_d2v_cme_context(config).to(device)
-            for param in model.data2vec_model.feature_extractor.parameters():
-                param.requires_grad = False
+        use_video = "V" in getattr(config, "modalities", "TA")
+
+        if use_video:
+            # New T/TA/TV/TAV video-capable pipeline
+            model = rob_d2v_videomae_cme(config).to(device)
         else:
-            if config.model == 'cc':
-                model = rob_d2v_cc(config).to(device)
-            elif config.model == 'cme':
-                model = rob_d2v_cme(config).to(device)
-            for param in model.data2vec_model.feature_extractor.parameters():
-                param.requires_grad = False
+            # Legacy TA/context pipeline
+            if config.context:
+                if config.model == 'cc':
+                    model = rob_d2v_cc_context(config).to(device)
+                elif config.model == 'cme':
+                    model = rob_d2v_cme_context(config).to(device)
+            else:
+                if config.model == 'cc':
+                    model = rob_d2v_cc(config).to(device)
+                elif config.model == 'cme':
+                    model = rob_d2v_cme(config).to(device)
         
         # Initialize trainer
         trainer = EnTrainer(config)
@@ -170,7 +175,8 @@ if __name__ == "__main__":
                 audio_context_len=1,
                 tasks='M',
                 multi_task=False,
-                dropout=0.3
+                dropout=0.3,
+                modalities="TV"
             )
     # Run test
     #test_results, val_results = test_checkpoint(checkpoint_path, config=en_config, dataset='vce_custom')
