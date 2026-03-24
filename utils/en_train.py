@@ -29,7 +29,7 @@ class EnConfig(object):
                 train_mode = 'regression',
                 loss_weights = {
                     'M':1,
-                    'T':1,
+                    'T':0.4, #test to see if it helps with video
                     'A':1,
                     'V':1,
                 },
@@ -158,24 +158,23 @@ class EnTrainer():
         
             loss.backward()                   
             optimizer.step()    
-        if not hasattr(self, "_debug_printed_train_batch"):
-            self._debug_printed_train_batch = False
+            if not hasattr(self, "_debug_printed_train_batch"):
+                self._debug_printed_train_batch = False
 
-        if not self._debug_printed_train_batch:
-            print("\n[DEBUG] ===== First train batch =====")
-            print(f"[DEBUG] batch_keys={list(batch.keys())}")
-            print(f"[DEBUG] has_video_pixel_values={'video_pixel_values' in batch}")
-            if "video_pixel_values" in batch:
-                print(f"[DEBUG] video_pixel_values_shape={tuple(batch['video_pixel_values'].shape)}")
-            print(f"[DEBUG] text_tokens_shape={tuple(batch['text_tokens'].shape)}")
-            if "audio_inputs" in batch:
-                print(f"[DEBUG] audio_inputs_shape={tuple(batch['audio_inputs'].shape)}")
-            print("[DEBUG] =============================\n")
-            self._debug_printed_train_batch = True            
-                    
-            total_loss = round(total_loss / len(data_loader.dataset), 4)
-#         print('TRAIN'+" >> loss: ",total_loss)
-        return total_loss
+            if not self._debug_printed_train_batch:
+                print("\n[DEBUG] ===== First train batch =====")
+                print(f"[DEBUG] batch_keys={list(batch.keys())}")
+                print(f"[DEBUG] has_video_pixel_values={'video_pixel_values' in batch}")
+                if "video_pixel_values" in batch:
+                    print(f"[DEBUG] video_pixel_values_shape={tuple(batch['video_pixel_values'].shape)}")
+                print(f"[DEBUG] text_tokens_shape={tuple(batch['text_tokens'].shape)}")
+                if "audio_inputs" in batch:
+                    print(f"[DEBUG] audio_inputs_shape={tuple(batch['audio_inputs'].shape)}")
+                print("[DEBUG] =============================\n")
+                self._debug_printed_train_batch = True
+
+            avg_train_loss = round(total_loss / len(data_loader.dataset), 4)
+            return avg_train_loss
 
     def do_test(self, model, data_loader, mode):
         model.eval()   # Put the model in eval mode.
@@ -273,7 +272,10 @@ class EnTrainer():
 
             for m in active_tasks:
                 val_loss[m] = round(val_loss[m] / len(data_loader.dataset), 4)
-            total_loss = round(val_loss[m] /dataset_len, 4)
+            w = self.config.loss_weights
+            total_loss = round(
+                sum(w.get(t, 1.0) * val_loss[t] for t in active_tasks), 4
+            )
             loss_str = " ".join([f"{m}_loss: {val_loss[m]:.4f}" for m in active_tasks])
             print(mode + " >> loss: ", total_loss, "   " + loss_str)
 
