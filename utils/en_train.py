@@ -348,19 +348,47 @@ def EnRun(config):
     print(f"[DEBUG] first_100_keys={sd_keys[:100]}")
     print("[DEBUG] ====================================\n")
 
-    print("\n[DEBUG] ===== EnRun model/data sanity =====")
-    print(f"[DEBUG] dataset_name={config.dataset_name}")
-    print(f"[DEBUG] modalities={config.modalities}")
-    print(f"[DEBUG] use_video={'V' in config.modalities}")
-    print(f"[DEBUG] model_class={model.__class__.__name__}")
+    print("\n[DEBUG] ===== Module tree / VideoMAE check =====")
+    module_names = [name for name, _ in model.named_modules()]
+    param_names = [name for name, _ in model.named_parameters()]
+    state_keys = list(model.state_dict().keys())
 
-    sd_keys = list(model.state_dict().keys())
-    print(f"[DEBUG] state_dict_num_keys={len(sd_keys)}")
-    print(f"[DEBUG] has_prefix_videomae={any(k.startswith('videomae.') for k in sd_keys)}")
-    print(f"[DEBUG] has_prefix_roberta={any(k.startswith('roberta.') for k in sd_keys)}")
-    print(f"[DEBUG] has_prefix_roberta_model={any(k.startswith('roberta_model.') for k in sd_keys)}")
-    print(f"[DEBUG] first_20_keys={sd_keys[:20]}")
-    print("[DEBUG] ====================================\n")
+    # 1) Find modules that look video-related
+    video_module_hits = [
+        n for n in module_names
+        if ("video" in n.lower()) or ("videomae" in n.lower())
+    ]
+    print(f"[DEBUG] video-related modules ({len(video_module_hits)}):")
+    for n in video_module_hits[:100]:
+        print(f"  - {n}")
+
+    # 2) Find params/state keys under those modules
+    video_param_hits = [
+        n for n in param_names
+        if n.startswith("videomae.") or ("video" in n.lower())
+    ]
+    video_state_hits = [
+        k for k in state_keys
+        if k.startswith("videomae.") or ("video" in k.lower())
+    ]
+
+    print(f"[DEBUG] video-related named_parameters ({len(video_param_hits)}):")
+    for n in video_param_hits[:120]:
+        print(f"  - {n}")
+
+    print(f"[DEBUG] video-related state_dict keys ({len(video_state_hits)}):")
+    for k in video_state_hits[:120]:
+        print(f"  - {k}")
+
+    # 3) Strong assertions as booleans
+    has_videomae_module = any(n == "videomae" or n.startswith("videomae.") for n in module_names)
+    has_videomae_params = any(n.startswith("videomae.") for n in param_names)
+    has_videomae_state = any(k.startswith("videomae.") for k in state_keys)
+
+    print(f"[DEBUG] has_videomae_module={has_videomae_module}")
+    print(f"[DEBUG] has_videomae_params={has_videomae_params}")
+    print(f"[DEBUG] has_videomae_state={has_videomae_state}")
+    print("[DEBUG] =========================================\n")
 
     while True:
         print('---------------------EPOCH: ', epoch, '--------------------')
