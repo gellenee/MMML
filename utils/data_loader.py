@@ -338,7 +338,7 @@ class Dataset_vce_custom_tav(torch.utils.data.Dataset):
 
         # video cache
         self.video_cache_files = df["video_cache_file"].astype(str).tolist()
-        self.video_cache_root = "data/VCE_CUSTOM/videomae_cache"
+        self.video_cache_root = "data/VCE/videomae_cache"
 
         # context bookkeeping
         self.video_id = df["video_id"].values
