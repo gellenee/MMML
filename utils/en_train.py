@@ -74,6 +74,7 @@ class EnConfig(object):
         self.text_context_len = text_context_len
         self.audio_context_len = audio_context_len
         self.modalities = modalities
+        self.max_grad_norm = max_grad_norm
 
         
         
@@ -178,8 +179,8 @@ class EnTrainer():
                 print("[DEBUG] =============================\n")
                 self._debug_printed_train_batch = True
 
-            avg_train_loss = round(total_loss / len(data_loader.dataset), 4)
-            return avg_train_loss
+        avg_train_loss = round(total_loss / len(data_loader.dataset), 4)
+        return avg_train_loss
 
     def do_test(self, model, data_loader, mode):
         model.eval()   # Put the model in eval mode.
