@@ -95,7 +95,8 @@ class EnTrainer():
         use_video = "V" in self.config.modalities
         use_audio = "A" in self.config.modalities
         # Loop over all batches.         
-        for batch in tqdm(data_loader):                    
+        for batch in tqdm(data_loader):        
+                        
             text_inputs = batch["text_tokens"].to(device)
             text_mask = batch["text_masks"].to(device)
             targets = batch["targets"].to(device).view(-1, 1)
@@ -156,9 +157,23 @@ class EnTrainer():
                 total_loss += loss.item()*text_inputs.size(0)
         
             loss.backward()                   
-            optimizer.step()                
-                
-        total_loss = round(total_loss / len(data_loader.dataset), 4)
+            optimizer.step()    
+        if not hasattr(self, "_debug_printed_train_batch"):
+            self._debug_printed_train_batch = False
+
+        if not self._debug_printed_train_batch:
+            print("\n[DEBUG] ===== First train batch =====")
+            print(f"[DEBUG] batch_keys={list(batch.keys())}")
+            print(f"[DEBUG] has_video_pixel_values={'video_pixel_values' in batch}")
+            if "video_pixel_values" in batch:
+                print(f"[DEBUG] video_pixel_values_shape={tuple(batch['video_pixel_values'].shape)}")
+            print(f"[DEBUG] text_tokens_shape={tuple(batch['text_tokens'].shape)}")
+            if "audio_inputs" in batch:
+                print(f"[DEBUG] audio_inputs_shape={tuple(batch['audio_inputs'].shape)}")
+            print("[DEBUG] =============================\n")
+            self._debug_printed_train_batch = True            
+                    
+            total_loss = round(total_loss / len(data_loader.dataset), 4)
 #         print('TRAIN'+" >> loss: ",total_loss)
         return total_loss
 
@@ -330,7 +345,7 @@ def EnRun(config):
     print(f"[DEBUG] has_prefix_videomae={any(k.startswith('videomae.') for k in sd_keys)}")
     print(f"[DEBUG] has_prefix_roberta={any(k.startswith('roberta.') for k in sd_keys)}")
     print(f"[DEBUG] has_prefix_roberta_model={any(k.startswith('roberta_model.') for k in sd_keys)}")
-    print(f"[DEBUG] first_20_keys={sd_keys[:20]}")
+    print(f"[DEBUG] first_100_keys={sd_keys[:100]}")
     print("[DEBUG] ====================================\n")
 
     while True:
