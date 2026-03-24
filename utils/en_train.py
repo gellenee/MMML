@@ -51,7 +51,7 @@ class EnConfig(object):
                  text_context_len = 2,
                  audio_context_len = 1,
                  modalities = 'TV',
-                 
+                 max_grad_norm = 1.0, #for gradient clipping
                 ):
 
         self.train_mode = train_mode
@@ -156,7 +156,12 @@ class EnTrainer():
                 loss = self.criterion(outputs['M'], targets)        
                 total_loss += loss.item()*text_inputs.size(0)
         
-            loss.backward()                   
+            loss.backward()            
+            if self.config.max_grad_norm is not None: 
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(),
+                     max_norm=self.config.max_grad_norm)  
+             
             optimizer.step()    
             if not hasattr(self, "_debug_printed_train_batch"):
                 self._debug_printed_train_batch = False
