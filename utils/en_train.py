@@ -348,6 +348,20 @@ def EnRun(config):
     print(f"[DEBUG] first_100_keys={sd_keys[:100]}")
     print("[DEBUG] ====================================\n")
 
+    print("\n[DEBUG] ===== EnRun model/data sanity =====")
+    print(f"[DEBUG] dataset_name={config.dataset_name}")
+    print(f"[DEBUG] modalities={config.modalities}")
+    print(f"[DEBUG] use_video={'V' in config.modalities}")
+    print(f"[DEBUG] model_class={model.__class__.__name__}")
+
+    sd_keys = list(model.state_dict().keys())
+    print(f"[DEBUG] state_dict_num_keys={len(sd_keys)}")
+    print(f"[DEBUG] has_prefix_videomae={any(k.startswith('videomae.') for k in sd_keys)}")
+    print(f"[DEBUG] has_prefix_roberta={any(k.startswith('roberta.') for k in sd_keys)}")
+    print(f"[DEBUG] has_prefix_roberta_model={any(k.startswith('roberta_model.') for k in sd_keys)}")
+    print(f"[DEBUG] first_20_keys={sd_keys[:20]}")
+    print("[DEBUG] ====================================\n")
+
     while True:
         print('---------------------EPOCH: ', epoch, '--------------------')
         epoch += 1
