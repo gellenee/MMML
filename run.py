@@ -22,7 +22,8 @@ def main(args):
         EnRun(EnConfig(batch_size=args.batch_size,learning_rate=args.lr,seed=args.seed, model=args.model, tasks = args.tasks,
                                     cme_version=args.cme_version, dataset_name=args.dataset,num_hidden_layers=args.num_hidden_layers,
                                     context=args.context, text_context_len=args.text_context_len, audio_context_len=args.audio_context_len,
-                                    modalities=args.modalities, ))
+                                    modalities=args.modalities,
+                                    use_amp=args.use_amp, amp_dtype=args.amp_dtype))
     else:
         ChRun(ChConfig(batch_size=args.batch_size,learning_rate=args.lr,seed=args.seed, model=args.model, tasks = args.tasks,
                                     cme_version=args.cme_version, num_hidden_layers=args.num_hidden_layers))
@@ -48,6 +49,14 @@ if __name__ == "__main__":
     choices=['TA', 'TV', 'TAV'],
     help='Which modalities to use inside CME: TA, TV, or TAV'
 )
+    parser.add_argument('--use_amp', action='store_true', help='CUDA automatic mixed precision (autocast)')
+    parser.add_argument(
+        '--amp_dtype',
+        type=str,
+        default='float16',
+        choices=['float16', 'bfloat16'],
+        help='AMP dtype: float16 uses GradScaler; bfloat16 often stable without scaler',
+    )
     args = parser.parse_args()
     main(args)
 

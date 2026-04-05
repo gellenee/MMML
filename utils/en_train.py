@@ -1,4 +1,6 @@
 import torch
+import contextlib
+from torch.cuda.amp import autocast, GradScaler #for automatic mixed precision training
 from torch import nn
 from tqdm import tqdm
 from utils.metricsTop import MetricsTop
@@ -52,6 +54,8 @@ class EnConfig(object):
                  audio_context_len = 1,
                  modalities = 'TV',
                  max_grad_norm = 1.0, #for gradient clipping
+                 use_amp = False,
+                 amp_dtype = 'float16',
                 ):
 
         self.train_mode = train_mode
@@ -75,7 +79,8 @@ class EnConfig(object):
         self.audio_context_len = audio_context_len
         self.modalities = modalities
         self.max_grad_norm = max_grad_norm
-
+        self.use_amp = use_amp
+        self.amp_dtype = amp_dtype
         
         
 class EnTrainer():
@@ -85,6 +90,24 @@ class EnTrainer():
         self.criterion = nn.L1Loss() if config.train_mode == 'regression' else nn.CrossEntropyLoss()
         self.metrics = MetricsTop(config.train_mode).getMetics(config.dataset_name)
         self.tasks = config.tasks
+    
+    #context manager to wrap forward pass for amp
+    def _autocast_cm(self):
+        if not getattr(self.config, "use_amp", False) or device.type != "cuda":
+            #run normal precision 
+            return contextlib.nullcontext()
+        # bfloat16 or float16 autocast on CUDA
+        dtype = (
+            torch.bfloat16
+            if getattr(self.config, "amp_dtype", "float16") == "bfloat16"
+            else torch.float16
+        )
+        return autocast(dtype=dtype)
+
+    def _use_grad_scaler(self):
+        if not getattr(self.config, "use_amp", False) or device.type != "cuda":
+            return False
+        return getattr(self.config, "amp_dtype", "float16") != "bfloat16"
         
     def do_train(self, model, data_loader):    
         model.train()
@@ -95,75 +118,86 @@ class EnTrainer():
 
         use_video = "V" in self.config.modalities
         use_audio = "A" in self.config.modalities
+        scaler = GradScaler(enabled=self._use_grad_scaler())
         # Loop over all batches.         
         for batch in tqdm(data_loader):        
                         
             text_inputs = batch["text_tokens"].to(device)
             text_mask = batch["text_masks"].to(device)
             targets = batch["targets"].to(device).view(-1, 1)
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
 
-            if use_video:
-                video_pixel_values = batch["video_pixel_values"].to(device)
+            with self._autocast_cm():
+                if use_video:
+                    video_pixel_values = batch["video_pixel_values"].to(device)
 
-                video_mask = batch["video_mask"].to(device) if "video_mask" in batch else None
-                
-                audio_inputs = batch["audio_inputs"].to(device) if use_audio and "audio_inputs" in batch else None
-                audio_mask = batch["audio_masks"].to(device) if use_audio and "audio_masks" in batch else None
-                outputs = model(
-                text_inputs,
-                text_mask,
-                audio_inputs=audio_inputs,
-                audio_mask=audio_mask,
-                video_pixel_values=video_pixel_values,
-                video_mask=video_mask,
-                )
-            else:
-                audio_inputs = batch["audio_inputs"].to(device)
-                audio_mask = batch["audio_masks"].to(device)
-                if self.config.context:
-                    text_context_inputs = batch["text_context_tokens"].to(device)
-                    text_context_mask = batch["text_context_masks"].to(device)
-                    audio_context_inputs = batch["audio_context_inputs"].to(device)
-                    audio_context_mask = batch["audio_context_masks"].to(device)
+                    video_mask = batch["video_mask"].to(device) if "video_mask" in batch else None
+
+                    audio_inputs = batch["audio_inputs"].to(device) if use_audio and "audio_inputs" in batch else None
+                    audio_mask = batch["audio_masks"].to(device) if use_audio and "audio_masks" in batch else None
                     outputs = model(
                         text_inputs,
                         text_mask,
-                        text_context_inputs,
-                        text_context_mask,
-                        audio_inputs,
-                        audio_mask,
-                        audio_context_inputs,
-                        audio_context_mask,
+                        audio_inputs=audio_inputs,
+                        audio_mask=audio_mask,
+                        video_pixel_values=video_pixel_values,
+                        video_mask=video_mask,
                     )
                 else:
-                    outputs = model(
-                        text_inputs,
-                        text_mask,
-                        audio_inputs,
-                        audio_mask,
+                    audio_inputs = batch["audio_inputs"].to(device)
+                    audio_mask = batch["audio_masks"].to(device)
+                    if self.config.context:
+                        text_context_inputs = batch["text_context_tokens"].to(device)
+                        text_context_mask = batch["text_context_masks"].to(device)
+                        audio_context_inputs = batch["audio_context_inputs"].to(device)
+                        audio_context_mask = batch["audio_context_masks"].to(device)
+                        outputs = model(
+                            text_inputs,
+                            text_mask,
+                            text_context_inputs,
+                            text_context_mask,
+                            audio_inputs,
+                            audio_mask,
+                            audio_context_inputs,
+                            audio_context_mask,
+                        )
+                    else:
+                        outputs = model(
+                            text_inputs,
+                            text_mask,
+                            audio_inputs,
+                            audio_mask,
+                        )
+
+                if self.config.multi_task:
+                    active_tasks = [t for t in self.tasks if (t in outputs and t in self.config.loss_weights)]
+                    loss = 0.0
+                    for m in active_tasks:
+                        sub_loss = self.config.loss_weights[m] * self.criterion(outputs[m], targets)
+                        loss += sub_loss
+                    total_loss += loss.item() * text_inputs.size(0)
+                else:
+                    loss = self.criterion(outputs["M"], targets)
+                    total_loss += loss.item() * text_inputs.size(0)
+
+            if scaler.is_enabled():
+                scaler.scale(loss).backward()
+                if self.config.max_grad_norm is not None:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(),
+                        max_norm=self.config.max_grad_norm,
                     )
-            
-            # Compute the training loss.
-            if self.config.multi_task:
-                active_tasks = [t for t in self.tasks if (t in outputs and t in self.config.loss_weights)]
-                loss = 0.0         
-                for m in active_tasks:
-                    sub_loss = self.config.loss_weights[m] * self.criterion(outputs[m], targets)
-                    loss += sub_loss
-    #                 train_loss[m] += sub_loss.item()*text_inputs.size(0)
-                total_loss += loss.item()*text_inputs.size(0)  
+                scaler.step(optimizer)
+                scaler.update()
             else:
-                loss = self.criterion(outputs['M'], targets)        
-                total_loss += loss.item()*text_inputs.size(0)
-        
-            loss.backward()            
-            if self.config.max_grad_norm is not None: 
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(),
-                     max_norm=self.config.max_grad_norm)  
-             
-            optimizer.step()    
+                loss.backward()
+                if self.config.max_grad_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(),
+                        max_norm=self.config.max_grad_norm,
+                    )
+                optimizer.step()
             if not hasattr(self, "_debug_printed_train_batch"):
                 self._debug_printed_train_batch = False
 
@@ -208,71 +242,69 @@ class EnTrainer():
                 text_inputs = batch["text_tokens"].to(device)
                 text_mask = batch["text_masks"].to(device)
                 targets = batch["targets"].to(device).view(-1, 1)
-            
-                if use_video:
-                    video_pixel_values = batch["video_pixel_values"].to(device)
-                    video_mask = batch["video_mask"].to(device) if "video_mask" in batch else None
 
-                    audio_inputs = batch["audio_inputs"].to(device) if use_audio and "audio_inputs" in batch else None
-                    audio_mask = batch["audio_masks"].to(device) if use_audio and "audio_masks" in batch else None
-                    outputs = model(
-                        text_inputs,
-                        text_mask,
-                        audio_inputs=audio_inputs,
-                        audio_mask=audio_mask,
-                        video_pixel_values=video_pixel_values,
-                        video_mask=video_mask,
-                    )
-                else:
-                    audio_inputs = batch["audio_inputs"].to(device)
-                    audio_mask = batch["audio_masks"].to(device)
-                    if self.config.context:
-                        text_context_inputs = batch["text_context_tokens"].to(device)
-                        text_context_mask = batch["text_context_masks"].to(device)
-                        audio_context_inputs = batch["audio_context_inputs"].to(device)
-                        audio_context_mask = batch["audio_context_masks"].to(device)
+                with self._autocast_cm():
+                    if use_video:
+                        video_pixel_values = batch["video_pixel_values"].to(device)
+                        video_mask = batch["video_mask"].to(device) if "video_mask" in batch else None
+
+                        audio_inputs = batch["audio_inputs"].to(device) if use_audio and "audio_inputs" in batch else None
+                        audio_mask = batch["audio_masks"].to(device) if use_audio and "audio_masks" in batch else None
                         outputs = model(
                             text_inputs,
                             text_mask,
-                            text_context_inputs,
-                            text_context_mask,
-                            audio_inputs,
-                            audio_mask,
-                            audio_context_inputs,
-                            audio_context_mask,
+                            audio_inputs=audio_inputs,
+                            audio_mask=audio_mask,
+                            video_pixel_values=video_pixel_values,
+                            video_mask=video_mask,
                         )
                     else:
-                        outputs = model(
-                            text_inputs,
-                            text_mask,
-                            audio_inputs,
-                            audio_mask,
-                        )
+                        audio_inputs = batch["audio_inputs"].to(device)
+                        audio_mask = batch["audio_masks"].to(device)
+                        if self.config.context:
+                            text_context_inputs = batch["text_context_tokens"].to(device)
+                            text_context_mask = batch["text_context_masks"].to(device)
+                            audio_context_inputs = batch["audio_context_inputs"].to(device)
+                            audio_context_mask = batch["audio_context_masks"].to(device)
+                            outputs = model(
+                                text_inputs,
+                                text_mask,
+                                text_context_inputs,
+                                text_context_mask,
+                                audio_inputs,
+                                audio_mask,
+                                audio_context_inputs,
+                                audio_context_mask,
+                            )
+                        else:
+                            outputs = model(
+                                text_inputs,
+                                text_mask,
+                                audio_inputs,
+                                audio_mask,
+                            )
 
-                # Compute loss.
-                if self.config.multi_task:
-                    if active_tasks is None:
-                        active_tasks = [t for t in self.tasks if (t in outputs and t in self.config.loss_weights)]
-                        y_pred = {t: [] for t in active_tasks}
-                        y_true = {t: [] for t in active_tasks}
-                        val_loss = {t: 0.0 for t in active_tasks}
+                    if self.config.multi_task:
+                        if active_tasks is None:
+                            active_tasks = [t for t in self.tasks if (t in outputs and t in self.config.loss_weights)]
+                            y_pred = {t: [] for t in active_tasks}
+                            y_true = {t: [] for t in active_tasks}
+                            val_loss = {t: 0.0 for t in active_tasks}
 
-                    loss = 0.0         
-                    for m in active_tasks:
-                        sub_loss = self.config.loss_weights[m] * self.criterion(outputs[m], targets)
-                        loss += sub_loss
-                        val_loss[m] += sub_loss.item()*text_inputs.size(0)
-                        y_pred[m].append(outputs[m].cpu())
-                        y_true[m].append(targets.cpu())
-                    total_loss += loss.item()*text_inputs.size(0)
-                    
-                else:
-                    loss = self.criterion(outputs['M'], targets)        
-                    total_loss += loss.item()*text_inputs.size(0)
+                        loss = 0.0
+                        for m in active_tasks:
+                            sub_loss = self.config.loss_weights[m] * self.criterion(outputs[m], targets)
+                            loss += sub_loss
+                            val_loss[m] += sub_loss.item() * text_inputs.size(0)
+                            y_pred[m].append(outputs[m].float().cpu())
+                            y_true[m].append(targets.cpu())
+                        total_loss += loss.item() * text_inputs.size(0)
 
-                    # add predictions
-                    y_pred.append(outputs['M'].cpu())
-                    y_true.append(targets.cpu())
+                    else:
+                        loss = self.criterion(outputs["M"], targets)
+                        total_loss += loss.item() * text_inputs.size(0)
+                        y_pred.append(outputs["M"].float().cpu())
+                        y_true.append(targets.cpu())
         # aggregate results
         if self.config.multi_task:
 
