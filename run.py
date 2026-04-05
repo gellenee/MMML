@@ -23,7 +23,10 @@ def main(args):
                                     cme_version=args.cme_version, dataset_name=args.dataset,num_hidden_layers=args.num_hidden_layers,
                                     context=args.context, text_context_len=args.text_context_len, audio_context_len=args.audio_context_len,
                                     modalities=args.modalities,
-                                    use_amp=args.use_amp, amp_dtype=args.amp_dtype))
+                                    use_amp=args.use_amp, amp_dtype=args.amp_dtype,
+                                    freeze_videomae=args.freeze_videomae,
+                                    freeze_roberta=args.freeze_roberta,
+                                    freeze_data2vec=args.freeze_data2vec))
     else:
         ChRun(ChConfig(batch_size=args.batch_size,learning_rate=args.lr,seed=args.seed, model=args.model, tasks = args.tasks,
                                     cme_version=args.cme_version, num_hidden_layers=args.num_hidden_layers))
@@ -56,6 +59,21 @@ if __name__ == "__main__":
         default='float16',
         choices=['float16', 'bfloat16'],
         help='AMP dtype: float16 uses GradScaler; bfloat16 often stable without scaler',
+    )
+    parser.add_argument(
+        '--freeze_videomae',
+        action='store_true',
+        help='Freeze VideoMAE backbone weights (CME + heads still train)',
+    )
+    parser.add_argument(
+        '--freeze_roberta',
+        action='store_true',
+        help='Freeze RoBERTa text encoder',
+    )
+    parser.add_argument(
+        '--freeze_data2vec',
+        action='store_true',
+        help='Freeze Data2Vec audio encoder',
     )
     args = parser.parse_args()
     main(args)

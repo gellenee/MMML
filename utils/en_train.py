@@ -56,6 +56,9 @@ class EnConfig(object):
                  max_grad_norm = 1.0, #for gradient clipping
                  use_amp = False,
                  amp_dtype = 'float16',
+                 freeze_videomae = False,
+                 freeze_roberta = False,
+                 freeze_data2vec = False,
                 ):
 
         self.train_mode = train_mode
@@ -81,8 +84,35 @@ class EnConfig(object):
         self.max_grad_norm = max_grad_norm
         self.use_amp = use_amp
         self.amp_dtype = amp_dtype
-        
-        
+        self.freeze_videomae = freeze_videomae
+        self.freeze_roberta = freeze_roberta
+        self.freeze_data2vec = freeze_data2vec
+
+
+def apply_videomae_cme_freezing(model, config):
+    """
+    Freeze pretrained backbones on rob_d2v_videomae_cme (TAV / TV / TA+video paths).
+    CME, per-modality heads, and stream CLS embeddings stay trainable unless fully covered.
+    """
+    if not isinstance(model, rob_d2v_videomae_cme):
+        return
+    if getattr(config, "freeze_videomae", False):
+        for p in model.videomae.parameters():
+            p.requires_grad = False
+    if getattr(config, "freeze_roberta", False):
+        for p in model.roberta.parameters():
+            p.requires_grad = False
+    if getattr(config, "freeze_data2vec", False):
+        for p in model.data2vec.parameters():
+            p.requires_grad = False
+
+
+def count_trainable_params(model):
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total = sum(p.numel() for p in model.parameters())
+    return trainable, total
+
+
 class EnTrainer():
     def __init__(self, config):
  
@@ -111,7 +141,10 @@ class EnTrainer():
         
     def do_train(self, model, data_loader):    
         model.train()
-        optimizer = torch.optim.AdamW(model.parameters(), lr=self.config.learning_rate)
+        trainable = [p for p in model.parameters() if p.requires_grad]
+        if not trainable:
+            raise RuntimeError("No trainable parameters (check backbone freezing flags).")
+        optimizer = torch.optim.AdamW(trainable, lr=self.config.learning_rate)
 
         total_loss = 0
         dataset_len = len(data_loader.dataset)
@@ -351,6 +384,12 @@ def EnRun(config):
     use_video = "V" in config.modalities
     if use_video:
         model = rob_d2v_videomae_cme(config).to(device)
+        apply_videomae_cme_freezing(model, config)
+        t_params, n_params = count_trainable_params(model)
+        print(
+            f"[freeze] videomae={config.freeze_videomae} roberta={config.freeze_roberta} "
+            f"data2vec={config.freeze_data2vec} | trainable_params={t_params:,} / total={n_params:,}"
+        )
     else:
         if config.context:
             if config.model == 'cc':
