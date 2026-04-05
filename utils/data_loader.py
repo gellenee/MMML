@@ -541,9 +541,18 @@ def _make_tav_loaders(batch_size, csv_path, audio_file_path, video_cache_root, t
         val_data, batch_size=batch_size, shuffle=False, collate_fn=collate_vce_custom_tav
     )
     return train_loader, test_loader, val_loader
-    
+
 def data_loader(batch_size, dataset, modalities = "TA", text_context_length=2, audio_context_length=1):
     if dataset == 'mosi':
+        if "V" in modalities and "A" in modalities:
+            return _make_tav_loaders(
+                batch_size,
+                csv_path="data/MOSI/labels_with_video_cache.csv",
+                audio_file_path="data/MOSI/wav",
+                video_cache_root="data/MOSI/video_caches",
+                text_context_length=text_context_length,
+                audio_context_length=audio_context_length,
+            )
         csv_path = 'data/MOSI/label.csv'
         audio_file_path = "data/MOSI/wav"
         train_data = Dataset_mosi(csv_path, audio_file_path, 'train', text_context_length=text_context_length, audio_context_length=audio_context_length)
@@ -555,6 +564,15 @@ def data_loader(batch_size, dataset, modalities = "TA", text_context_length=2, a
         val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
         return train_loader, test_loader, val_loader
     elif dataset == 'mosei':
+        if "V" in modalities and "A" in modalities:
+            return _make_tav_loaders(
+                batch_size,
+                csv_path="data/MOSEI/labels_with_video_cache.csv",
+                audio_file_path="data/MOSEI/wav",
+                video_cache_root="data/MOSEI/video_caches",
+                text_context_length=text_context_length,
+                audio_context_length=audio_context_length,
+            )
         csv_path = 'data/MOSEI/label.csv'
         audio_file_path = "data/MOSEI/wav"
         train_data = Dataset_mosi(csv_path, audio_file_path, 'train', text_context_length=text_context_length, audio_context_length=audio_context_length)
