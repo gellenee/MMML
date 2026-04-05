@@ -69,16 +69,18 @@ class rob_d2v_videomae_cme(nn.Module):
         t_pooled = t_out["pooler_output"]             # [B, 768]
         t_pred = self.T_head(t_pooled)
 
-        # --- Audio ---
+         # --- Audio ---
         a_pred, a_tokens, a_mask_used, a_pooled = None, None, None, None
         if "A" in self.modalities:
             a_out = self.data2vec(audio_inputs, audio_mask, return_dict=True)
-            a_tokens = a_out.last_hidden_state        # [B, Sa, 768]
-            # simplest pooling: mean over masked frames
-            m = audio_mask.unsqueeze(-1).float()      # [B, Sa, 1]
-            a_pooled = (a_tokens * m).sum(dim=1) / (m.sum(dim=1).clamp_min(1.0))
+            a_tokens = a_out.last_hidden_state  # [B, Sa, 768]
+            # audio_mask is Wav2Vec input length (~96000), not Sa — CME needs [B, Sa]
+            Sa = a_tokens.size(1)
+            a_mask_used = torch.ones(
+                a_tokens.size(0), Sa, device=a_tokens.device, dtype=torch.long
+            )
+            a_pooled = a_tokens.mean(dim=1)
             a_pred = self.A_head(a_pooled)
-            a_mask_used = audio_mask
 
         # --- Video ---
         v_pred, v_tokens, v_mask_used, v_pooled = None, None, None, None
