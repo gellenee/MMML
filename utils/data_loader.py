@@ -296,35 +296,41 @@ class Dataset_vce_custom(torch.utils.data.Dataset):
     
 class Dataset_vce_custom_tav(torch.utils.data.Dataset):
     """
-    VCE_CUSTOM dataset yielding text, audio(+context), and cached video clips.
+    Text + audio (+context) + cached VideoMAE tensors [T,C,H,W] per row.
 
-    Expects CSV `data/VCE_CUSTOM/labels_with_video_cache.csv` columns:
-      - video_id
-      - audio_file
-      - text
-      - label
-      - mode (train/test/valid)
-      - video_cache_file (relative .pt path under data/VCE_CUSTOM/videomae_cache)
+    Required CSV columns:
+      - video_id, audio_file, text, label, mode, video_cache_file
+    Optional:
+      - clip_id (if present, rows are sorted by video_id then clip_id like Dataset_mosi)
+
+    video_cache_file paths are relative to video_cache_root.
     """
-    def __init__(self, csv_path, audio_directory, mode,
-                 text_context_length=2, audio_context_length=1):
+    def __init__(
+        self,
+        csv_path,
+        audio_directory,
+        mode,
+        text_context_length=2,
+        audio_context_length=1,
+        video_cache_root="data/MOSEI/video_caches", #change this to path of cache folder with pt files
+    ):
 
         from transformers import AutoTokenizer, Wav2Vec2FeatureExtractor
 
         df = pd.read_csv(csv_path)
         df = df[df["mode"] == mode].reset_index(drop=True)
-        df = df.sort_values(by=["video_id"]).reset_index(drop=True)
+        sort_cols = ["video_id"]
+        if "clip_id" in df.columns:
+            sort_cols.append("clip_id")
+        df = df.sort_values(by=sort_cols).reset_index(drop=True)
 
-        # labels
         self.targets_M = df["label"].astype(np.float32)
 
-        # text
         self.texts = df["text"].apply(
             lambda x: str(x)[0] + str(x)[1:].lower() if len(str(x)) > 1 else str(x)
         )
         self.tokenizer = AutoTokenizer.from_pretrained("roberta-large")
 
-        # audio
         self.audio_file_paths = [
             os.path.join(audio_directory, str(f)) for f in df["audio_file"].tolist()
         ]
@@ -336,11 +342,9 @@ class Dataset_vce_custom_tav(torch.utils.data.Dataset):
             return_attention_mask=True,
         )
 
-        # video cache
         self.video_cache_files = df["video_cache_file"].astype(str).tolist()
-        self.video_cache_root = "data/VCE/videomae_cache"
+        self.video_cache_root = video_cache_root
 
-        # context bookkeeping
         self.video_id = df["video_id"].values
         self.text_context_length = text_context_length
         self.audio_context_length = audio_context_length
@@ -502,6 +506,42 @@ def collate_vce_custom_tav(batch):
         "targets": torch.stack([b["targets"] for b in batch], dim=0),  # [B]
     }
 
+def _make_tav_loaders(batch_size, csv_path, audio_file_path, video_cache_root, text_context_length, audio_context_length):
+    train_data = Dataset_vce_custom_tav(
+        csv_path,
+        audio_file_path,
+        "train",
+        text_context_length=text_context_length,
+        audio_context_length=audio_context_length,
+        video_cache_root=video_cache_root,
+    )
+    test_data = Dataset_vce_custom_tav(
+        csv_path,
+        audio_file_path,
+        "test",
+        text_context_length=text_context_length,
+        audio_context_length=audio_context_length,
+        video_cache_root=video_cache_root,
+    )
+    val_data = Dataset_vce_custom_tav(
+        csv_path,
+        audio_file_path,
+        "valid",
+        text_context_length=text_context_length,
+        audio_context_length=audio_context_length,
+        video_cache_root=video_cache_root,
+    )
+    train_loader = DataLoader(
+        train_data, batch_size=batch_size, shuffle=True, collate_fn=collate_vce_custom_tav
+    )
+    test_loader = DataLoader(
+        test_data, batch_size=batch_size, shuffle=False, collate_fn=collate_vce_custom_tav
+    )
+    val_loader = DataLoader(
+        val_data, batch_size=batch_size, shuffle=False, collate_fn=collate_vce_custom_tav
+    )
+    return train_loader, test_loader, val_loader
+    
 def data_loader(batch_size, dataset, modalities = "TA", text_context_length=2, audio_context_length=1):
     if dataset == 'mosi':
         csv_path = 'data/MOSI/label.csv'
