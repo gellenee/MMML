@@ -588,22 +588,27 @@ def data_loader(batch_size, dataset, modalities = "TA", text_context_length=2, a
         if "V" in modalities:
             # use video cached pt files
             csv_path = "data/VCE/labels_with_video_cache.csv"
+            video_cache_root = "data/VCE/videomae_cache"
             if "A" in modalities:
                 # T+A+V (+ context) dataset
                 train_data = Dataset_vce_custom_tav(
                     csv_path, audio_file_path, "train",
                     text_context_length=text_context_length,
                     audio_context_length=audio_context_length,
+                    video_cache_root=video_cache_root,
                 )
                 test_data = Dataset_vce_custom_tav(
                     csv_path, audio_file_path, "test",
                     text_context_length=text_context_length,
                     audio_context_length=audio_context_length,
+                    video_cache_root=video_cache_root,
                 )
                 val_data = Dataset_vce_custom_tav(
                     csv_path, audio_file_path, "valid",
                     text_context_length=text_context_length,
-                    audio_context_length=audio_context_length)
+                    audio_context_length=audio_context_length,
+                    video_cache_root=video_cache_root,
+                )
                 train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, collate_fn=collate_vce_custom_tav)
                 test_loader  = DataLoader(test_data,  batch_size=batch_size, shuffle=False, collate_fn=collate_vce_custom_tav)
                 val_loader   = DataLoader(val_data,   batch_size=batch_size, shuffle=False, collate_fn=collate_vce_custom_tav)
