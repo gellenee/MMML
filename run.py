@@ -26,7 +26,8 @@ def main(args):
                                     use_amp=args.use_amp, amp_dtype=args.amp_dtype,
                                     freeze_videomae=args.freeze_videomae,
                                     freeze_roberta=args.freeze_roberta,
-                                    freeze_data2vec=args.freeze_data2vec))
+                                    freeze_data2vec=args.freeze_data2vec,
+                                    init_checkpoint=args.init_checkpoint))
     else:
         ChRun(ChConfig(batch_size=args.batch_size,learning_rate=args.lr,seed=args.seed, model=args.model, tasks = args.tasks,
                                     cme_version=args.cme_version, num_hidden_layers=args.num_hidden_layers))
@@ -75,6 +76,13 @@ if __name__ == "__main__":
         action='store_true',
         help='Freeze Data2Vec audio encoder',
     )
+    parser.add_argument(
+        '--init_checkpoint', # for freezing backbone weights
+        type=str,
+        default='',
+        help='Path to .pth state_dict to load before training (e.g. stage-1 best checkpoint)',
+    )
+
     args = parser.parse_args()
     main(args)
 

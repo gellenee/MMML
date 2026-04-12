@@ -59,6 +59,7 @@ class EnConfig(object):
                  freeze_videomae = False,
                  freeze_roberta = False,
                  freeze_data2vec = False,
+                 init_checkpoint = None, # for freezing backbone weights
                 ):
 
         self.train_mode = train_mode
@@ -87,7 +88,7 @@ class EnConfig(object):
         self.freeze_videomae = freeze_videomae
         self.freeze_roberta = freeze_roberta
         self.freeze_data2vec = freeze_data2vec
-
+        self.init_checkpoint = init_checkpoint
 
 def apply_videomae_cme_freezing(model, config):
     """
@@ -385,11 +386,21 @@ def EnRun(config):
     if use_video:
         model = rob_d2v_videomae_cme(config).to(device)
         apply_videomae_cme_freezing(model, config)
+        ckpt = getattr(config, "init_checkpoint", None)
+        if ckpt:
+            ckpt = ckpt.strip()
+            if ckpt:
+                print(f"[init] loading checkpoint: {ckpt}")
+                state = torch.load(ckpt, map_location=device)
+                missing, unexpected = model.load_state_dict(state, strict=True)
+                if missing or unexpected:
+                    print(f"[init] load_state_dict strict=True issues — missing: {missing}, unexpected: {unexpected}")
         t_params, n_params = count_trainable_params(model)
         print(
             f"[freeze] videomae={config.freeze_videomae} roberta={config.freeze_roberta} "
             f"data2vec={config.freeze_data2vec} | trainable_params={t_params:,} / total={n_params:,}"
         )
+
     else:
         if config.context:
             if config.model == 'cc':
@@ -412,6 +423,13 @@ def EnRun(config):
     highest_eval_acc = 0
     epoch = 0
     best_epoch = 0
+
+    best_loss_path = None
+    best_acc_path = None
+    best_loss_epoch = None
+    best_acc_epoch = None
+    best_loss_val = None
+    best_acc_val = None 
 
     print("\n[DEBUG] ===== EnRun model/data sanity =====")
     print(f"[DEBUG] dataset_name={config.dataset_name}")
