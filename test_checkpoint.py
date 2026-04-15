@@ -173,10 +173,10 @@ if __name__ == "__main__":
                 context = True,
                 text_context_len=2,
                 audio_context_len=1,
-                tasks='M',
-                multi_task=False,
+                tasks='TAV',
+                multi_task=True,
                 dropout=0.3,
-                modalities="TV"
+                modalities="TAV"
             )
     # Run test
     #test_results, val_results = test_checkpoint(checkpoint_path, config=en_config, dataset='vce_custom')
