@@ -147,7 +147,7 @@ def test_checkpoint(checkpoint_path, config=None, dataset='mosei'):
 # Example usage:
 if __name__ == "__main__":
     # For SIMS dataset
-    checkpoint_path = "checkpoint/best_loss_VCE_CUSTOM_seed1_loss1.8320.pth"  # Update this path
+    checkpoint_path = "checkpoint/best_loss_VCE_CUSTOM_seed11_loss0.4666.pth"  # Update this path
     
     from utils.ch_train import ChConfig
     from utils.en_train import EnConfig
